@@ -29,6 +29,7 @@ import {
   FileText,
   ArrowRight,
   Shield,
+  ClipboardCheck,
 } from 'lucide-react-native';
 
 export default function WardenDashboard() {
@@ -91,6 +92,45 @@ export default function WardenDashboard() {
             </LinearGradient>
           </TouchableOpacity>
         )}
+
+        {/* Daily Roll-Call Attendance Quick Action */}
+        <TouchableOpacity
+          style={styles.rollCallCard}
+          onPress={() => router.push('/(warden)/attendance')}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.95)', 'rgba(238, 246, 255, 0.88)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.rollCallInner}
+          >
+            <View style={styles.cardGloss} />
+            <View style={styles.rollCallLeft}>
+              <LinearGradient
+                colors={COLORS.gradients.liquidCyan}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.rollCallIconCircle}
+              >
+                <ClipboardCheck size={22} color="#FFFFFF" />
+              </LinearGradient>
+              <View style={styles.rollCallTextGroup}>
+                <View style={styles.rollCallTitleRow}>
+                  <Text style={styles.rollCallTitle}>Daily Roll-Call Attendance</Text>
+                  <View style={styles.liveBadge}>
+                    <View style={styles.pulseDot} />
+                    <Text style={styles.liveBadgeText}>Night Session</Text>
+                  </View>
+                </View>
+                <Text style={styles.rollCallSub}>
+                  Fill up & verify physical attendance for all hostel students
+                </Text>
+              </View>
+            </View>
+            <ArrowRight size={18} color={COLORS.primary} />
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* 6 Key Analytics Cards */}
         <Text style={styles.analyticsHeading}>HOSTEL OVERVIEW</Text>
@@ -216,6 +256,22 @@ export default function WardenDashboard() {
             </LinearGradient>
             <Text style={styles.quickTitle}>Guards</Text>
             <Text style={styles.quickSub}>Roster</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickCard}
+            onPress={() => router.push('/(warden)/attendance')}
+            activeOpacity={0.75}
+          >
+            <View style={styles.cardGloss} />
+            <LinearGradient
+              colors={['rgba(219, 234, 254, 0.95)', 'rgba(191, 219, 254, 0.7)']}
+              style={styles.quickIconCircle}
+            >
+              <ClipboardCheck size={18} color={COLORS.primary} />
+            </LinearGradient>
+            <Text style={styles.quickTitle}>Attendance</Text>
+            <Text style={styles.quickSub}>Roll-Call</Text>
           </TouchableOpacity>
         </View>
 
@@ -363,6 +419,78 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: '#FEE2E2',
     marginTop: 1,
+  },
+  rollCallCard: {
+    marginHorizontal: 0,
+    marginBottom: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  rollCallInner: {
+    borderRadius: 20,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+  },
+  rollCallLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  rollCallIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  rollCallTextGroup: {
+    flex: 1,
+  },
+  rollCallTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rollCallTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  pulseDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: COLORS.primary,
+    marginRight: 4,
+  },
+  liveBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+  },
+  rollCallSub: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   statsGrid: {
     flexDirection: 'row',

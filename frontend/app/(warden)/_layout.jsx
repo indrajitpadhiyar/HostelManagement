@@ -19,6 +19,7 @@ export default function WardenLayout() {
       <Stack.Screen name="guards" />
       <Stack.Screen name="reports" />
       <Stack.Screen name="notifications" />
+      <Stack.Screen name="attendance" />
     </Stack>
   );
 }

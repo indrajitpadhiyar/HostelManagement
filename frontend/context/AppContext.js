@@ -1010,6 +1010,60 @@ export function AppProvider({ children }) {
     });
   };
 
+  const saveBatchRollCall = (rollCallMap, date, session = 'NIGHT_ROLL_CALL') => {
+    const todayDate = date || new Date().toISOString().split('T')[0];
+    const wardenName = currentUser?.name || 'Dr. Vijay K. Singh';
+
+    // Update student STU001 (Aarav Sharma) if present in the rollCallMap
+    if (rollCallMap['STU001']) {
+      const aaravEntry = rollCallMap['STU001'];
+      markRollCall('STU001', aaravEntry.status, session, aaravEntry.remarks);
+    }
+
+    const presentCount = Object.values(rollCallMap).filter((v) => v.status === 'PRESENT').length;
+    const leaveCount = Object.values(rollCallMap).filter((v) => v.status === 'ON_LEAVE').length;
+    const absentCount = Object.values(rollCallMap).filter((v) => v.status === 'ABSENT').length;
+
+    // Log real-time audit Activity
+    const newActivity = {
+      id: `act-${Date.now()}`,
+      title: 'Night Roll-Call Completed',
+      description: `${presentCount} Present, ${leaveCount} On Leave, ${absentCount} Absent. Verified by ${wardenName}.`,
+      timestamp: 'Just now',
+      badgeType: absentCount > 0 ? 'warning' : 'success',
+      status: 'VERIFIED',
+    };
+    setActivities((prev) => [newActivity, ...prev]);
+
+    // Create confirmation Notification
+    const newNotifs = [
+      {
+        id: `notif-${Date.now()}-1`,
+        userId: currentUser?.id,
+        role: 'warden',
+        title: 'Roll-Call Finalized',
+        message: `Roll-call for ${todayDate} (${session}) submitted: ${presentCount} Present, ${absentCount} Absent.`,
+        time: 'Just now',
+        read: false,
+      },
+    ];
+
+    if (absentCount > 0) {
+      newNotifs.push({
+        id: `notif-${Date.now()}-2`,
+        role: 'parent',
+        title: 'Hostel Roll-Call Alert',
+        message: `${absentCount} student(s) marked absent during tonight's roll-call. Inspection advised.`,
+        time: 'Just now',
+        read: false,
+      });
+    }
+
+    setNotifications((prev) => [...newNotifs, ...prev]);
+
+    return { success: true, presentCount, leaveCount, absentCount };
+  };
+
   const value = {
     isLoading,
     currentUser,
@@ -1027,6 +1081,7 @@ export function AppProvider({ children }) {
     stats,
     attendance,
     markRollCall,
+    saveBatchRollCall,
     // Workflows
     submitLeaveRequest,
     parentApproveLeave,

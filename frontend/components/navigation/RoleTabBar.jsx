@@ -37,6 +37,7 @@ const SUB_ROUTE_MAP = {
   'student-details': 'students',
   'activities': 'dashboard',
   'guards': 'dashboard',
+  'attendance': 'dashboard',
 
   // Guard sub-routes
   'gate-exit': 'dashboard',
