@@ -127,8 +127,13 @@ export default function ApplyLeave() {
         subtitle={`Step ${currentStep} of 3`}
         showBack={true}
         onBack={() => {
-          if (currentStep > 1) setCurrentStep(currentStep - 1);
-          else router.back();
+          if (currentStep > 1) {
+            setCurrentStep(currentStep - 1);
+          } else if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/(student)/dashboard');
+          }
         }}
       />
 

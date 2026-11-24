@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { ArrowLeft, Bell, LogOut } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../constants/colors';
@@ -11,23 +11,116 @@ export default function AppHeader({
   subtitle,
   showBack = false,
   onBack,
+  onBackPress,
+  fallbackRoute,
   showNotifications = true,
   notificationRoute,
   rightAction,
   showLogout = false,
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { currentUser, logout, notifications } = useApp();
 
   const unreadCount = notifications.filter(
     (n) => n.role === currentUser?.role && !n.read
   ).length;
 
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
+  const navigateToSectionHome = () => {
+    if (fallbackRoute) {
+      router.replace(fallbackRoute);
+      return;
+    }
+
+    const path = pathname || '';
+
+    // Student section
+    if (path.includes('(student)')) {
+      if (path.includes('leave-details') || path.includes('extend-leave')) {
+        router.replace('/(student)/leave-history');
+      } else {
+        router.replace('/(student)/dashboard');
+      }
+      return;
+    }
+
+    // Security Guard section
+    if (path.includes('(guard)')) {
+      router.replace('/(guard)/dashboard');
+      return;
+    }
+
+    // Warden section
+    if (path.includes('(warden)')) {
+      if (path.includes('student-details')) {
+        router.replace('/(warden)/students');
+      } else if (path.includes('leave-details')) {
+        router.replace('/(warden)/leave-requests');
+      } else {
+        router.replace('/(warden)/dashboard');
+      }
+      return;
+    }
+
+    // Parent section
+    if (path.includes('(parent)')) {
+      if (path.includes('leave-details')) {
+        router.replace('/(parent)/approvals');
+      } else {
+        router.replace('/(parent)/dashboard');
+      }
+      return;
+    }
+
+    // Auth section
+    if (path.includes('(auth)')) {
+      router.replace('/(auth)/login');
+      return;
+    }
+
+    // Default by current user role
+    if (currentUser?.role) {
+      const roleHomeMap = {
+        student: '/(student)/dashboard',
+        parent: '/(parent)/dashboard',
+        warden: '/(warden)/dashboard',
+        guard: '/(guard)/dashboard',
+      };
+      router.replace(roleHomeMap[currentUser.role] || '/(auth)/login');
     } else {
+      router.replace('/(auth)/login');
+    }
+  };
+
+  const handleBack = () => {
+    const customHandler = onBack || onBackPress;
+
+    if (customHandler) {
+      // Check if the custom handler is simply calling router.back()
+      const handlerStr = customHandler.toString().replace(/\s+/g, '');
+      const isSimpleRouterBack =
+        handlerStr.includes('router.back()') &&
+        !handlerStr.includes('if') &&
+        !handlerStr.includes('else') &&
+        !handlerStr.includes('set') &&
+        !handlerStr.includes('Step');
+
+      if (!isSimpleRouterBack) {
+        try {
+          customHandler();
+          return;
+        } catch (e) {
+          console.warn('Custom back handler error:', e);
+        }
+      }
+    }
+
+    // Default back behavior:
+    // If router can pop stack history, pop it; otherwise use section home fallback
+    if (router.canGoBack()) {
       router.back();
+    } else {
+      navigateToSectionHome();
     }
   };
 
@@ -62,7 +155,7 @@ export default function AppHeader({
               style={styles.glassButton}
               onPress={handleBack}
               activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <ArrowLeft size={20} color={COLORS.textPrimary} />
             </TouchableOpacity>
@@ -179,9 +272,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   subtitle: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11.5,
     color: COLORS.textSecondary,
+    fontWeight: '500',
     marginTop: 1,
   },
   rightContainer: {
@@ -190,12 +283,12 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: -3,
+    right: -3,
     backgroundColor: COLORS.danger,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
@@ -204,7 +297,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 9,
+    fontSize: 9.5,
     fontWeight: '800',
   },
 });
