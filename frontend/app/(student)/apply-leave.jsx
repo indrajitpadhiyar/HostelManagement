@@ -41,18 +41,20 @@ export default function ApplyLeave() {
   const [currentStep, setCurrentStep] = useState(1);
 
   // Form fields
-  const [reason, setReason] = useState('Family Function');
+  const [reason, setReason] = useState('');
   const [detailedExplanation, setDetailedExplanation] = useState('');
-  const [destinationAddress, setDestinationAddress] = useState(
-    '42, Shanti Vihar, Civil Lines'
-  );
-  const [destinationCity, setDestinationCity] = useState('Jaipur, Rajasthan');
-  const [emergencyContact, setEmergencyContact] = useState(student.parentMobile);
+  const [destinationAddress, setDestinationAddress] = useState('');
+  const [destinationCity, setDestinationCity] = useState('');
+  const [emergencyContact, setEmergencyContact] = useState(student?.parentMobile || '');
 
-  // Dates
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [departureDate, setDepartureDate] = useState('2026-11-25');
-  const [expectedReturnDate, setExpectedReturnDate] = useState('2026-11-28');
+  // Dates (dynamically starting from tomorrow)
+  const tomorrowObj = new Date();
+  tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+  const returnObj = new Date(tomorrowObj);
+  returnObj.setDate(returnObj.getDate() + 3);
+
+  const [departureDate, setDepartureDate] = useState(tomorrowObj.toISOString().split('T')[0]);
+  const [expectedReturnDate, setExpectedReturnDate] = useState(returnObj.toISOString().split('T')[0]);
 
   // Date picker modal state
   const [datePickerTarget, setDatePickerTarget] = useState(null); // 'departure' | 'return'

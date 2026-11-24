@@ -27,24 +27,17 @@ export default function AttendanceCard({ attendance, onCardPress }) {
   const [filter, setFilter] = useState('ALL'); // ALL | PRESENT | ON_LEAVE | ABSENT
 
   const stats = attendance?.stats || {
-    totalDays: 24,
-    presentDays: 20,
-    leaveDays: 3,
-    absentDays: 1,
-    attendanceRate: 95.8,
-    streak: 11,
-    complianceStatus: 'EXCELLENT',
+    totalDays: 0,
+    presentDays: 0,
+    leaveDays: 0,
+    absentDays: 0,
+    attendanceRate: 100,
+    streak: 0,
+    complianceStatus: 'GOOD',
     minimumRequired: 75,
   };
 
-  const today = attendance?.today || {
-    status: 'PRESENT',
-    session: 'NIGHT_ROLL_CALL',
-    markedAt: '08:30 PM',
-    markedBy: 'Dr. Vijay K. Singh (Warden)',
-    date: '2026-11-24',
-    verified: true,
-  };
+  const today = attendance?.today || null;
 
   const weeklyStrip = attendance?.weeklyStrip || [];
   const records = attendance?.records || [];
@@ -178,58 +171,104 @@ export default function AttendanceCard({ attendance, onCardPress }) {
             </View>
           </View>
 
-          {/* Today's Night Roll-Call Status Banner */}
-          <LinearGradient
-            colors={['rgba(240, 253, 244, 0.85)', 'rgba(220, 252, 231, 0.65)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.todayBanner}
-          >
-            <View style={styles.todayLeft}>
-              <View style={styles.todayIconCircle}>
-                <CheckCircle2 size={15} color={COLORS.success} />
+          {/* Today's Roll-Call Status Banner */}
+          {today ? (
+            <LinearGradient
+              colors={
+                today.status === 'ABSENT'
+                  ? ['rgba(254, 242, 242, 0.9)', 'rgba(254, 226, 226, 0.7)']
+                  : today.status === 'ON_LEAVE'
+                  ? ['rgba(239, 246, 255, 0.9)', 'rgba(219, 234, 254, 0.7)']
+                  : ['rgba(240, 253, 244, 0.85)', 'rgba(220, 252, 231, 0.65)']
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.todayBanner}
+            >
+              <View style={styles.todayLeft}>
+                <View style={styles.todayIconCircle}>
+                  <CheckCircle2
+                    size={15}
+                    color={
+                      today.status === 'ABSENT'
+                        ? COLORS.danger
+                        : today.status === 'ON_LEAVE'
+                        ? COLORS.primary
+                        : COLORS.success
+                    }
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.todayTitle}>
+                    Today: {today.status === 'ON_LEAVE' ? 'On Authorized Leave' : today.status === 'ABSENT' ? 'Marked Absent' : 'Marked Present'}{today.markedAt && today.markedAt !== '-' ? ` (${today.markedAt})` : ''}
+                  </Text>
+                  <Text style={styles.todaySub} numberOfLines={1}>
+                    {today.markedBy || 'Warden'} • Verified in hostel
+                  </Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.todayTitle}>
-                  Today: Marked Present ({today.markedAt})
-                </Text>
-                <Text style={styles.todaySub} numberOfLines={1}>
-                  {today.markedBy} • Verified in hostel
-                </Text>
+            </LinearGradient>
+          ) : (
+            <LinearGradient
+              colors={['rgba(248, 250, 252, 0.9)', 'rgba(241, 245, 249, 0.75)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.todayBanner}
+            >
+              <View style={styles.todayLeft}>
+                <View style={[styles.todayIconCircle, { backgroundColor: 'rgba(100, 116, 139, 0.12)' }]}>
+                  <Clock size={15} color={COLORS.textSecondary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.todayTitle, { color: COLORS.textSecondary }]}>
+                    Today's Roll-Call: Pending
+                  </Text>
+                  <Text style={styles.todaySub} numberOfLines={1}>
+                    Physical attendance call is conducted nightly at 08:30 PM
+                  </Text>
+                </View>
               </View>
-            </View>
-          </LinearGradient>
+            </LinearGradient>
+          )}
 
           {/* 7-Day Weekly Strip */}
           <View style={styles.weekSection}>
             <Text style={styles.weekLabel}>PAST 7 DAYS ACTIVITY</Text>
-            <View style={styles.weekRow}>
-              {weeklyStrip.map((item, idx) => {
-                const color = getStatusColor(item.status);
-                return (
-                  <View
-                    key={idx}
-                    style={[
-                      styles.dayPod,
-                      item.isToday && styles.todayPodActive,
-                    ]}
-                  >
-                    <Text style={[styles.dayText, item.isToday && styles.todayDayText]}>
-                      {item.day}
-                    </Text>
-                    <Text
+            {weeklyStrip.length > 0 ? (
+              <View style={styles.weekRow}>
+                {weeklyStrip.map((item, idx) => {
+                  const color = getStatusColor(item.status);
+                  return (
+                    <View
+                      key={idx}
                       style={[
-                        styles.dayNumber,
-                        item.isToday && { color: COLORS.primaryDark, fontWeight: '700' },
+                        styles.dayPod,
+                        item.isToday && styles.todayPodActive,
                       ]}
                     >
-                      {item.dayNumber}
-                    </Text>
-                    <View style={[styles.statusDot, { backgroundColor: color }]} />
-                  </View>
-                );
-              })}
-            </View>
+                      <Text style={[styles.dayText, item.isToday && styles.todayDayText]}>
+                        {item.day}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.dayNumber,
+                          item.isToday && { color: COLORS.primaryDark, fontWeight: '700' },
+                        ]}
+                      >
+                        {item.dayNumber}
+                      </Text>
+                      <View style={[styles.statusDot, { backgroundColor: color }]} />
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: COLORS.textMuted }}>
+                  No roll-call sessions recorded yet this week.
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* View Full History Button */}
@@ -321,31 +360,39 @@ export default function AttendanceCard({ attendance, onCardPress }) {
                 style={styles.recordsList}
                 showsVerticalScrollIndicator={false}
               >
-                {filteredRecords.map((item) => {
-                  const color = getStatusColor(item.status);
-                  const bg = getStatusBg(item.status);
-                  return (
-                    <View key={item.id} style={styles.recordItem}>
-                      <View style={styles.recordLeft}>
-                        <View style={[styles.recordBadge, { backgroundColor: bg }]}>
-                          <Text style={[styles.recordBadgeText, { color }]}>
-                            {item.status.replace('_', ' ')}
+                {filteredRecords.length > 0 ? (
+                  filteredRecords.map((item) => {
+                    const color = getStatusColor(item.status);
+                    const bg = getStatusBg(item.status);
+                    return (
+                      <View key={item.id} style={styles.recordItem}>
+                        <View style={styles.recordLeft}>
+                          <View style={[styles.recordBadge, { backgroundColor: bg }]}>
+                            <Text style={[styles.recordBadgeText, { color }]}>
+                              {item.status.replace('_', ' ')}
+                            </Text>
+                          </View>
+                          <View style={{ marginLeft: 10 }}>
+                            <Text style={styles.recordDate}>{item.date}</Text>
+                            <Text style={styles.recordRemarks}>{item.remarks}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.recordRight}>
+                          <Text style={styles.recordTime}>{item.time}</Text>
+                          <Text style={styles.recordMarkedBy} numberOfLines={1}>
+                            {item.markedBy}
                           </Text>
                         </View>
-                        <View style={{ marginLeft: 10 }}>
-                          <Text style={styles.recordDate}>{item.date}</Text>
-                          <Text style={styles.recordRemarks}>{item.remarks}</Text>
-                        </View>
                       </View>
-                      <View style={styles.recordRight}>
-                        <Text style={styles.recordTime}>{item.time}</Text>
-                        <Text style={styles.recordMarkedBy} numberOfLines={1}>
-                          {item.markedBy}
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 13, color: COLORS.textMuted }}>
+                      No attendance records found for this period.
+                    </Text>
+                  </View>
+                )}
                 <View style={{ height: 24 }} />
               </ScrollView>
             </LinearGradient>

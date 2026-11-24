@@ -11,7 +11,7 @@ import { Activity } from '../models/Activity.js';
 import { Notification } from '../models/Notification.js';
 import { Guard } from '../models/Guard.js';
 import { Attendance } from '../models/Attendance.js';
-import { ROLES, LEAVE_STATUS, HOSTEL_STATUS, NOTIFICATION_TYPES } from '../config/constants.js';
+import { ROLES, HOSTEL_STATUS } from '../config/constants.js';
 
 async function seed() {
   console.log('🌱 Starting HostelEase Enterprise Database Seeder...');
@@ -19,7 +19,7 @@ async function seed() {
 
   if (mongoose.connection.readyState !== 1) {
     console.error('\n❌ Seeding aborted: Could not connect to MongoDB Atlas.');
-    console.error('👉 Please whitelist your IP (106.202.121.121) or add 0.0.0.0/0 in MongoDB Atlas > Network Access.');
+    console.error('👉 Please whitelist your IP in MongoDB Atlas > Network Access.');
     console.error('   Then re-run: npm run seed\n');
     process.exit(1);
   }
@@ -79,7 +79,7 @@ async function seed() {
 
     console.log('🏢 Seeding Hostel Rooms...');
     // 2. Seed Rooms
-    const rooms = await Room.insertMany([
+    await Room.insertMany([
       { roomNo: 'A-204', block: 'Block A', floor: '2nd Floor', type: 'Double Occupancy (AC)', capacity: 2, studentIds: [] },
       { roomNo: 'A-101', block: 'Block A', floor: '1st Floor', type: 'Double Occupancy (AC)', capacity: 2, studentIds: [] },
       { roomNo: 'A-102', block: 'Block A', floor: '1st Floor', type: 'Double Occupancy', capacity: 2, studentIds: [] },
@@ -90,7 +90,7 @@ async function seed() {
       { roomNo: 'B-201', block: 'Block B', floor: '2nd Floor', type: 'Triple Non-AC', capacity: 3, studentIds: [] },
     ]);
 
-    console.log('🎓 Seeding Students...');
+    console.log('🎓 Seeding Students Directory...');
     // 3. Seed Students
     const student1 = await Student.create({
       userId: studentUser._id,
@@ -133,7 +133,7 @@ async function seed() {
         year: '2nd Year',
         gender: 'Male',
         bloodGroup: 'O+',
-        hostelStatus: HOSTEL_STATUS.OUTSIDE,
+        hostelStatus: HOSTEL_STATUS.PRESENT,
         parentDetails: {
           name: 'Mukesh Verma',
           relation: 'Father',
@@ -213,12 +213,6 @@ async function seed() {
     await Room.updateOne({ roomNo: 'A-201' }, { $addToSet: { studentIds: otherStudents[2]._id } });
     await Room.updateOne({ roomNo: 'B-102' }, { $addToSet: { studentIds: otherStudents[3]._id } });
 
-    // Refresh Room counts
-    const allRooms = await Room.find();
-    for (const r of allRooms) {
-      await r.save();
-    }
-
     console.log('🛡️ Seeding Security Guards...');
     // 4. Seed Guards
     await Guard.insertMany([
@@ -249,266 +243,9 @@ async function seed() {
       },
     ]);
 
-    console.log('📝 Seeding Comprehensive Leave Requests...');
-    // 5. Seed Leave Requests
-    await LeaveRequest.insertMany([
-      // Request 1: Pending Parent Approval
-      {
-        passId: 'LP-2026-1001',
-        studentId: student1._id,
-        leaveType: 'Home Visit',
-        startDate: '2026-11-25',
-        endDate: '2026-11-29',
-        expectedReturnDate: '2026-11-29',
-        departureTime: '10:00 AM',
-        returnTime: '06:00 PM',
-        destinationCity: 'Jaipur, Rajasthan',
-        destinationAddress: '142, Malviya Nagar, Jaipur',
-        reason: 'Family Function & Sister Wedding Ceremony',
-        emergencyContact: '9876543211',
-        modeOfTravel: 'Train',
-        status: LEAVE_STATUS.PENDING_PARENT_APPROVAL,
-      },
-      // Request 2: Parent Approved, Pending Warden Approval
-      {
-        passId: 'LP-2026-1002',
-        studentId: otherStudents[2]._id,
-        leaveType: 'Academic / Conference',
-        startDate: '2026-11-26',
-        endDate: '2026-11-28',
-        expectedReturnDate: '2026-11-28',
-        departureTime: '08:30 AM',
-        returnTime: '07:00 PM',
-        destinationCity: 'Delhi',
-        destinationAddress: 'IIT Delhi Campus',
-        reason: 'National Robotics Hackathon 2026',
-        emergencyContact: '9876543241',
-        modeOfTravel: 'Bus',
-        status: LEAVE_STATUS.PARENT_APPROVED,
-        parentApproval: {
-          approved: true,
-          actionTimestamp: new Date(),
-          remarks: 'Approved by father for educational competition.',
-        },
-      },
-      // Request 3: Warden Approved, Ready for Gate Scan
-      {
-        passId: 'LP-2026-1003',
-        studentId: otherStudents[1]._id,
-        leaveType: 'Medical',
-        startDate: '2026-11-23',
-        endDate: '2026-11-24',
-        expectedReturnDate: '2026-11-24',
-        departureTime: '11:00 AM',
-        returnTime: '05:00 PM',
-        destinationCity: 'City Hospital',
-        destinationAddress: 'Apollo Multispeciality, Sector 12',
-        reason: 'Dental Surgery and Root Canal Follow-up',
-        emergencyContact: '9876543231',
-        modeOfTravel: 'Cab / Auto',
-        status: LEAVE_STATUS.WARDEN_APPROVED,
-        parentApproval: {
-          approved: true,
-          actionTimestamp: new Date(),
-          remarks: 'Medical appointment confirmed.',
-        },
-        wardenApproval: {
-          approved: true,
-          wardenId: wardenUser._id,
-          actionTimestamp: new Date(),
-          remarks: 'Approved. Carry medical prescription upon return.',
-        },
-      },
-      // Request 4: Currently Checked Out (Student Outside)
-      {
-        passId: 'LP-2026-1004',
-        studentId: otherStudents[0]._id,
-        leaveType: 'Home Visit',
-        startDate: '2026-11-20',
-        endDate: '2026-11-24',
-        expectedReturnDate: '2026-11-24',
-        departureTime: '09:00 AM',
-        returnTime: '06:00 PM',
-        destinationCity: 'Delhi NCR',
-        destinationAddress: 'Sector 62, Noida',
-        reason: 'Grandfather 80th Birthday Celebrations',
-        emergencyContact: '9876543221',
-        modeOfTravel: 'Train',
-        status: LEAVE_STATUS.CHECKED_OUT,
-        parentApproval: { approved: true, actionTimestamp: new Date() },
-        wardenApproval: { approved: true, wardenId: wardenUser._id, actionTimestamp: new Date() },
-        gateExit: {
-          scannedBy: guardUser._id,
-          timestamp: new Date('2026-11-20T09:15:00.000Z'),
-          gateNumber: 'Main Gate 1',
-        },
-      },
-      // Request 5: Completed Past Leave (History)
-      {
-        passId: 'LP-2026-0988',
-        studentId: student1._id,
-        leaveType: 'Weekend Outing',
-        startDate: '2026-11-10',
-        endDate: '2026-11-12',
-        expectedReturnDate: '2026-11-12',
-        departureTime: '04:00 PM',
-        returnTime: '08:00 PM',
-        destinationCity: 'Jaipur',
-        destinationAddress: 'Home',
-        reason: 'Diwali Festival Celebrations',
-        emergencyContact: '9876543211',
-        modeOfTravel: 'Personal Vehicle',
-        status: LEAVE_STATUS.CHECKED_IN,
-        parentApproval: { approved: true, actionTimestamp: new Date() },
-        wardenApproval: { approved: true, wardenId: wardenUser._id, actionTimestamp: new Date() },
-        gateExit: {
-          scannedBy: guardUser._id,
-          timestamp: new Date('2026-11-10T16:05:00.000Z'),
-          gateNumber: 'Main Gate 1',
-        },
-        gateReturn: {
-          scannedBy: guardUser._id,
-          timestamp: new Date('2026-11-12T19:45:00.000Z'),
-          gateNumber: 'Main Gate 1',
-          wasOverdue: false,
-        },
-      },
-    ]);
-
-    console.log('⚡ Seeding Real-time Activities...');
-    // 6. Seed Activities
-    await Activity.insertMany([
-      {
-        studentName: 'Rohan Verma',
-        enrollmentNo: 'EN2022045',
-        roomNo: 'A-101',
-        type: 'GATE_EXIT',
-        title: 'Gate Exit Verified',
-        description: 'Exited via Main Gate 1 for Home Visit. Gate Guard: Ramesh Guard.',
-        badgeType: 'warning',
-      },
-      {
-        studentName: 'Priya Patel',
-        enrollmentNo: 'EN2022078',
-        roomNo: 'B-101',
-        type: 'WARDEN_APPROVED',
-        title: 'Warden Clearance Granted',
-        description: 'Approved for Medical Leave by Dr. Vijay K. Singh.',
-        badgeType: 'success',
-      },
-      {
-        studentName: 'Vikram Singh',
-        enrollmentNo: 'EN2022112',
-        roomNo: 'A-201',
-        type: 'PARENT_APPROVED',
-        title: 'Parent Approval Received',
-        description: 'Parent Devendra Singh confirmed approval for Academic Hackathon.',
-        badgeType: 'info',
-      },
-      {
-        studentName: 'Aarav Sharma',
-        enrollmentNo: 'EN2022001',
-        roomNo: 'A-204',
-        type: 'LEAVE_SUBMITTED',
-        title: 'New Leave Application',
-        description: 'Applied for 5-day Home Visit to Jaipur (Sister Wedding).',
-        badgeType: 'info',
-      },
-    ]);
-
-    console.log('🔔 Seeding System Notifications...');
-    // 7. Seed Notifications
-    await Notification.insertMany([
-      {
-        userId: studentUser._id,
-        role: ROLES.STUDENT,
-        title: 'Leave Submitted Successfully',
-        message: 'Your leave application LP-2026-1001 has been sent to your parent for approval.',
-        type: NOTIFICATION_TYPES.LEAVE_REQUEST,
-        requestId: 'LP-2026-1001',
-        time: '10 mins ago',
-      },
-      {
-        userId: parentUser._id,
-        role: ROLES.PARENT,
-        title: 'Leave Approval Requested',
-        message: 'Aarav has submitted a leave request for Sister Wedding from 25 Nov to 29 Nov.',
-        type: NOTIFICATION_TYPES.LEAVE_REQUEST,
-        requestId: 'LP-2026-1001',
-        time: '10 mins ago',
-      },
-      {
-        userId: wardenUser._id,
-        role: ROLES.WARDEN,
-        title: 'Leave Pending Review',
-        message: 'Vikram Singh (A-201) has been approved by parent and requires your clearance.',
-        type: NOTIFICATION_TYPES.LEAVE_REQUEST,
-        requestId: 'LP-2026-1002',
-        time: '1 hour ago',
-      },
-      {
-        userId: guardUser._id,
-        role: ROLES.GUARD,
-        title: 'Approved Exit Ready',
-        message: 'Priya Patel (B-101) pass LP-2026-1003 is approved for gate exit clearance.',
-        type: NOTIFICATION_TYPES.GATE_EXIT,
-        requestId: 'LP-2026-1003',
-        time: '2 hours ago',
-      },
-    ]);
-
-    console.log('📅 Seeding Monthly Attendance Records...');
-    // 8. Seed Attendance Records for November 2026
-    const attendanceRecords = [];
-    const dateList = [
-      { day: 1, status: 'PRESENT' },
-      { day: 2, status: 'PRESENT' },
-      { day: 3, status: 'PRESENT' },
-      { day: 4, status: 'PRESENT' },
-      { day: 5, status: 'PRESENT' },
-      { day: 6, status: 'PRESENT' },
-      { day: 7, status: 'PRESENT' },
-      { day: 8, status: 'PRESENT' },
-      { day: 9, status: 'PRESENT' },
-      { day: 10, status: 'ON_LEAVE', remarks: 'Diwali Festival Approved Pass' },
-      { day: 11, status: 'ON_LEAVE', remarks: 'Diwali Festival Approved Pass' },
-      { day: 12, status: 'ON_LEAVE', remarks: 'Diwali Festival Approved Pass' },
-      { day: 13, status: 'ABSENT', remarks: 'Unexcused - Missed Night Roll Call' },
-      { day: 14, status: 'PRESENT' },
-      { day: 15, status: 'PRESENT' },
-      { day: 16, status: 'PRESENT' },
-      { day: 17, status: 'PRESENT' },
-      { day: 18, status: 'PRESENT' },
-      { day: 19, status: 'PRESENT' },
-      { day: 20, status: 'PRESENT' },
-      { day: 21, status: 'PRESENT' },
-      { day: 22, status: 'PRESENT' },
-      { day: 23, status: 'PRESENT' },
-      { day: 24, status: 'PRESENT', remarks: 'Night Roll Call Verified' },
-    ];
-
-    for (const item of dateList) {
-      const dayStr = item.day < 10 ? `0${item.day}` : `${item.day}`;
-      const fullDate = `2026-11-${dayStr}`;
-      attendanceRecords.push({
-        studentId: student1._id,
-        userId: studentUser._id,
-        studentName: student1.name,
-        enrollmentNo: student1.enrollmentNo,
-        roomNo: student1.roomNo,
-        date: fullDate,
-        status: item.status,
-        session: 'NIGHT_ROLL_CALL',
-        markedAt: item.status === 'ABSENT' ? '-' : '08:30 PM',
-        markedBy: 'Dr. Vijay K. Singh (Warden)',
-        remarks: item.remarks || 'Present during physical roll-call',
-      });
-    }
-
-    await Attendance.insertMany(attendanceRecords);
-
+    console.log('✨ Clean database ready with 0 dummy leave requests, 0 fake activities, and 0 fake attendance records.');
     console.log('====================================================');
-    console.log('✅ HostelEase Database Seed Completed Successfully!');
+    console.log('✅ HostelEase Clean Database Seed Completed Successfully!');
     console.log('====================================================');
     console.log('Demo Credentials:');
     console.log('  👨‍🎓 Student:  student@hosteleasy.demo / Password@123 (or phone 9876543210)');

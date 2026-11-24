@@ -32,8 +32,8 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login, switchDemoRole } = useApp();
 
-  const [email, setEmail] = useState('student@hosteleasy.demo');
-  const [password, setPassword] = useState('demo123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');

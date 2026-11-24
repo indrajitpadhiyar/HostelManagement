@@ -10,15 +10,27 @@ import { INITIAL_NOTIFICATIONS } from '../data/notifications';
 import { INITIAL_ATTENDANCE } from '../data/attendance';
 
 const STORAGE_KEYS = {
-  USER_SESSION: '@hosteleasy_session_v1',
-  STUDENTS: '@hosteleasy_students_v1',
-  ROOMS: '@hosteleasy_rooms_v1',
-  LEAVES: '@hosteleasy_leaves_v1',
-  ACTIVITIES: '@hosteleasy_activities_v1',
-  NOTIFICATIONS: '@hosteleasy_notifications_v1',
-  GUARDS: '@hosteleasy_guards_v1',
-  ATTENDANCE: '@hosteleasy_attendance_v1',
+  USER_SESSION: '@hosteleasy_session_v2',
+  STUDENTS: '@hosteleasy_students_v2',
+  ROOMS: '@hosteleasy_rooms_v2',
+  LEAVES: '@hosteleasy_leaves_v2',
+  ACTIVITIES: '@hosteleasy_activities_v2',
+  NOTIFICATIONS: '@hosteleasy_notifications_v2',
+  GUARDS: '@hosteleasy_guards_v2',
+  ATTENDANCE: '@hosteleasy_attendance_v2',
 };
+
+// Legacy keys to flush out obsolete dummy data
+const LEGACY_STORAGE_KEYS = [
+  '@hosteleasy_session_v1',
+  '@hosteleasy_students_v1',
+  '@hosteleasy_rooms_v1',
+  '@hosteleasy_leaves_v1',
+  '@hosteleasy_activities_v1',
+  '@hosteleasy_notifications_v1',
+  '@hosteleasy_guards_v1',
+  '@hosteleasy_attendance_v1',
+];
 
 export const MockDataService = {
   async getStoredSession() {
@@ -48,6 +60,9 @@ export const MockDataService = {
 
   async loadInitialData() {
     try {
+      // Purge legacy v1 mock cache if present
+      await AsyncStorage.multiRemove(LEGACY_STORAGE_KEYS).catch(() => {});
+
       const [storedStudents, storedRooms, storedLeaves, storedActivities, storedNotifs, storedGuards, storedAttendance] =
         await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.STUDENTS),

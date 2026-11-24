@@ -318,22 +318,28 @@ export default function WardenDashboard() {
           onActionPress={() => router.push('/(warden)/activities')}
         />
 
-        {recentActivities.map((act) => (
-          <View key={act.id} style={styles.activityCard}>
-            <View style={styles.cardGloss} />
-            <View style={styles.activityDot} />
-            <View style={styles.activityBody}>
-              <View style={styles.activityHeader}>
-                <Text style={styles.actTitle}>{act.title}</Text>
-                <Text style={styles.actTime}>{act.timestamp}</Text>
+        {recentActivities.length > 0 ? (
+          recentActivities.map((act) => (
+            <View key={act.id} style={styles.activityCard}>
+              <View style={styles.cardGloss} />
+              <View style={styles.activityDot} />
+              <View style={styles.activityBody}>
+                <View style={styles.activityHeader}>
+                  <Text style={styles.actTitle}>{act.title}</Text>
+                  <Text style={styles.actTime}>{act.timestamp}</Text>
+                </View>
+                <Text style={styles.actStudent}>
+                  {act.studentName} ({act.roomNo})
+                </Text>
+                <Text style={styles.actDesc}>{act.description}</Text>
               </View>
-              <Text style={styles.actStudent}>
-                {act.studentName} ({act.roomNo})
-              </Text>
-              <Text style={styles.actDesc}>{act.description}</Text>
             </View>
+          ))
+        ) : (
+          <View style={styles.allClearCard}>
+            <Text style={styles.allClearText}>No recent movements or activity recorded yet.</Text>
           </View>
-        ))}
+        )}
       </ScrollView>
 
       <RoleTabBar role="warden" />

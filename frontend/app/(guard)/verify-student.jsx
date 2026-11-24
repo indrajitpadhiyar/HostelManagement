@@ -51,13 +51,15 @@ export default function GuardVerifyStudent() {
   };
 
   const handleSimulateScan = () => {
-    // Pick the first student with approved pass for demonstration
+    // Pick student with approved pass if available, or first hostel student
     const demoReq = leaveRequests.find(
       (r) => r.status === LEAVE_STATUS.PARENT_APPROVED || r.status === LEAVE_STATUS.WARDEN_APPROVED
-    ) || leaveRequests[0];
-    const stu = students.find((s) => s.id === demoReq.studentId) || students[0];
-    setSearchRoll(stu.enrollmentNo);
-    handleSelectStudent(stu);
+    );
+    const stu = demoReq ? students.find((s) => s.id === demoReq.studentId) : students[0];
+    if (stu) {
+      setSearchRoll(stu.enrollmentNo);
+      handleSelectStudent(stu);
+    }
   };
 
   return (
