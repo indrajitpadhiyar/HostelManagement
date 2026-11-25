@@ -27,7 +27,6 @@ import {
   Check,
   Sparkles,
   Zap,
-  ArrowRight,
 } from 'lucide-react-native';
 
 const ROLE_CONFIGS = {
@@ -130,14 +129,6 @@ export default function LoginScreen() {
     if (!res.success) {
       setErrorMsg(res.message);
     }
-  };
-
-  const handleQuickRole = async (role) => {
-    setErrorMsg('');
-    setActiveRole(role);
-    setLoading(true);
-    await switchDemoRole(role);
-    setLoading(false);
   };
 
   const handleAutoFill = () => {
@@ -322,104 +313,6 @@ export default function LoginScreen() {
                 style={styles.loginButton}
               />
             </LinearGradient>
-          </View>
-
-          {/* Direct 1-Tap Quick Role Access Cards */}
-          <View style={styles.demoSection}>
-            <View style={styles.demoHeaderRow}>
-              <View style={styles.demoDivider} />
-              <Text style={styles.demoHeaderTitle}>DIRECT 1-TAP ROLE ACCESS</Text>
-              <View style={styles.demoDivider} />
-            </View>
-            <Text style={styles.demoHeaderSub}>
-              Enter portals instantly with verified role permissions
-            </Text>
-
-            <View style={styles.roleGrid}>
-              {/* Student */}
-              <TouchableOpacity
-                style={[styles.roleCard, activeRole === ROLES.STUDENT && styles.roleCardActive]}
-                onPress={() => handleQuickRole(ROLES.STUDENT)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.roleCardGloss} />
-                <LinearGradient
-                  colors={['rgba(219, 234, 254, 0.9)', 'rgba(191, 219, 254, 0.6)']}
-                  style={styles.roleIconCircle}
-                >
-                  <User size={20} color="#2563EB" />
-                </LinearGradient>
-                <Text style={styles.roleName}>Student</Text>
-                <Text style={styles.roleDetail}>Aarav Sharma (A-204)</Text>
-                <View style={styles.roleCardFooter}>
-                  <Text style={[styles.roleActionText, { color: '#2563EB' }]}>Enter Portal</Text>
-                  <ArrowRight size={12} color="#2563EB" />
-                </View>
-              </TouchableOpacity>
-
-              {/* Parent */}
-              <TouchableOpacity
-                style={[styles.roleCard, activeRole === ROLES.PARENT && styles.roleCardActive]}
-                onPress={() => handleQuickRole(ROLES.PARENT)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.roleCardGloss} />
-                <LinearGradient
-                  colors={['rgba(254, 226, 226, 0.9)', 'rgba(254, 202, 202, 0.6)']}
-                  style={styles.roleIconCircle}
-                >
-                  <Heart size={20} color="#E11D48" />
-                </LinearGradient>
-                <Text style={styles.roleName}>Parent</Text>
-                <Text style={styles.roleDetail}>Rajesh Sharma</Text>
-                <View style={styles.roleCardFooter}>
-                  <Text style={[styles.roleActionText, { color: '#E11D48' }]}>Enter Portal</Text>
-                  <ArrowRight size={12} color="#E11D48" />
-                </View>
-              </TouchableOpacity>
-
-              {/* Warden */}
-              <TouchableOpacity
-                style={[styles.roleCard, activeRole === ROLES.WARDEN && styles.roleCardActive]}
-                onPress={() => handleQuickRole(ROLES.WARDEN)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.roleCardGloss} />
-                <LinearGradient
-                  colors={['rgba(209, 250, 229, 0.9)', 'rgba(167, 243, 208, 0.6)']}
-                  style={styles.roleIconCircle}
-                >
-                  <Shield size={20} color="#059669" />
-                </LinearGradient>
-                <Text style={styles.roleName}>Warden</Text>
-                <Text style={styles.roleDetail}>Dr. Rameshwar Upadhyay</Text>
-                <View style={styles.roleCardFooter}>
-                  <Text style={[styles.roleActionText, { color: '#059669' }]}>Enter Portal</Text>
-                  <ArrowRight size={12} color="#059669" />
-                </View>
-              </TouchableOpacity>
-
-              {/* Guard */}
-              <TouchableOpacity
-                style={[styles.roleCard, activeRole === ROLES.GUARD && styles.roleCardActive]}
-                onPress={() => handleQuickRole(ROLES.GUARD)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.roleCardGloss} />
-                <LinearGradient
-                  colors={['rgba(254, 243, 199, 0.9)', 'rgba(253, 230, 138, 0.6)']}
-                  style={styles.roleIconCircle}
-                >
-                  <ShieldCheck size={20} color="#D97706" />
-                </LinearGradient>
-                <Text style={styles.roleName}>Security Guard</Text>
-                <Text style={styles.roleDetail}>Balwant Singh (Gate 1)</Text>
-                <View style={styles.roleCardFooter}>
-                  <Text style={[styles.roleActionText, { color: '#D97706' }]}>Enter Portal</Text>
-                  <ArrowRight size={12} color="#D97706" />
-                </View>
-              </TouchableOpacity>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -670,95 +563,5 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     height: 50,
-  },
-  demoSection: {
-    marginTop: 2,
-  },
-  demoHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  demoDivider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(203, 213, 225, 0.6)',
-  },
-  demoHeaderTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    color: COLORS.textMuted,
-    marginHorizontal: 12,
-  },
-  demoHeaderSub: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginBottom: 14,
-  },
-  roleGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  roleCard: {
-    width: '48%',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1.2,
-    borderColor: COLORS.glassBorder,
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  roleCardActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: '#FFFFFF',
-    shadowOpacity: 0.12,
-  },
-  roleCardGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 8,
-    right: 8,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-  },
-  roleIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  roleName: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-  },
-  roleDetail: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-    marginBottom: 8,
-  },
-  roleCardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(241, 245, 249, 0.9)',
-  },
-  roleActionText: {
-    fontSize: 11,
-    fontWeight: '700',
   },
 });
