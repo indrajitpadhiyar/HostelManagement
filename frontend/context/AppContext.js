@@ -71,22 +71,45 @@ export function AppProvider({ children }) {
     }
   }, [students, rooms, leaveRequests, activities, notifications, guards, attendance, isLoading]);
 
-  // Auth Functions
-  const login = async (email, password) => {
-    const trimmed = (email || '').trim().toLowerCase();
+  // Auth Functions with Multi-Role Detection (Student, Parent, Warden, Guard)
+  const login = async (identifier, password, requestedRole) => {
+    const raw = (identifier || '').trim();
+    const trimmed = raw.toLowerCase();
+    const cleanNum = raw.replace(/\D/g, '');
 
-    // Check student
-    if (trimmed === 'student@hosteleasy.demo' || trimmed === 'student') {
-      const student = students.find((s) => s.id === 'STU001') || students[0];
+    // 1. Check Student Role
+    if (
+      requestedRole === ROLES.STUDENT ||
+      trimmed === 'student' ||
+      trimmed.includes('student@') ||
+      trimmed.startsWith('en') ||
+      trimmed.startsWith('stu') ||
+      students.some(
+        (s) =>
+          s.email.toLowerCase() === trimmed ||
+          s.enrollmentNo.toLowerCase() === trimmed ||
+          s.id.toLowerCase() === trimmed ||
+          (cleanNum.length >= 6 && s.mobile.replace(/\D/g, '').includes(cleanNum))
+      )
+    ) {
+      const matchedStudent =
+        students.find(
+          (s) =>
+            s.email.toLowerCase() === trimmed ||
+            s.enrollmentNo.toLowerCase() === trimmed ||
+            s.id.toLowerCase() === trimmed ||
+            (cleanNum.length >= 6 && s.mobile.replace(/\D/g, '').includes(cleanNum))
+        ) || students[0];
+
       const user = {
-        id: student.id,
+        id: matchedStudent.id,
         role: ROLES.STUDENT,
-        name: student.name,
-        email: student.email,
-        enrollmentNo: student.enrollmentNo,
-        roomNo: student.roomNo,
-        department: student.department,
-        avatar: student.avatar,
+        name: matchedStudent.name,
+        email: matchedStudent.email,
+        enrollmentNo: matchedStudent.enrollmentNo,
+        roomNo: matchedStudent.roomNo,
+        department: matchedStudent.department,
+        avatar: matchedStudent.avatar,
       };
       setCurrentUser(user);
       await MockDataService.saveSession(user);
@@ -94,18 +117,37 @@ export function AppProvider({ children }) {
       return { success: true };
     }
 
-    // Check parent
-    if (trimmed === 'parent@hosteleasy.demo' || trimmed === 'parent') {
-      const parent = parents[0];
-      const child = students.find((s) => s.id === parent.studentIds[0]) || students[0];
+    // 2. Check Parent Role
+    if (
+      requestedRole === ROLES.PARENT ||
+      trimmed === 'parent' ||
+      trimmed.includes('parent@') ||
+      trimmed.startsWith('par') ||
+      parents.some(
+        (p) =>
+          p.email.toLowerCase() === trimmed ||
+          p.id.toLowerCase() === trimmed ||
+          (cleanNum.length >= 6 && p.mobile.replace(/\D/g, '').includes(cleanNum))
+      )
+    ) {
+      const matchedParent =
+        parents.find(
+          (p) =>
+            p.email.toLowerCase() === trimmed ||
+            p.id.toLowerCase() === trimmed ||
+            (cleanNum.length >= 6 && p.mobile.replace(/\D/g, '').includes(cleanNum))
+        ) || parents[0];
+
+      const child =
+        students.find((s) => s.id === matchedParent.studentIds[0]) || students[0];
       const user = {
-        id: parent.id,
+        id: matchedParent.id,
         role: ROLES.PARENT,
-        name: parent.name,
-        email: parent.email,
+        name: matchedParent.name,
+        email: matchedParent.email,
         studentId: child.id,
         studentName: child.name,
-        avatar: parent.avatar,
+        avatar: matchedParent.avatar,
       };
       setCurrentUser(user);
       await MockDataService.saveSession(user);
@@ -113,16 +155,36 @@ export function AppProvider({ children }) {
       return { success: true };
     }
 
-    // Check warden
-    if (trimmed === 'warden@hosteleasy.demo' || trimmed === 'warden') {
-      const warden = wardens[0];
+    // 3. Check Warden Role
+    if (
+      requestedRole === ROLES.WARDEN ||
+      trimmed === 'warden' ||
+      trimmed.includes('warden@') ||
+      trimmed.startsWith('war') ||
+      trimmed.includes('upadhyay') ||
+      trimmed.includes('vijay') ||
+      wardens.some(
+        (w) =>
+          w.email.toLowerCase() === trimmed ||
+          w.id.toLowerCase() === trimmed ||
+          (cleanNum.length >= 6 && w.mobile.replace(/\D/g, '').includes(cleanNum))
+      )
+    ) {
+      const matchedWarden =
+        wardens.find(
+          (w) =>
+            w.email.toLowerCase() === trimmed ||
+            w.id.toLowerCase() === trimmed ||
+            (cleanNum.length >= 6 && w.mobile.replace(/\D/g, '').includes(cleanNum))
+        ) || wardens[0];
+
       const user = {
-        id: warden.id,
+        id: matchedWarden.id,
         role: ROLES.WARDEN,
-        name: warden.name,
-        email: warden.email,
-        block: warden.block,
-        avatar: warden.avatar,
+        name: matchedWarden.name,
+        email: matchedWarden.email,
+        block: matchedWarden.block,
+        avatar: matchedWarden.avatar,
       };
       setCurrentUser(user);
       await MockDataService.saveSession(user);
@@ -130,16 +192,34 @@ export function AppProvider({ children }) {
       return { success: true };
     }
 
-    // Check guard
-    if (trimmed === 'guard@hosteleasy.demo' || trimmed === 'guard') {
-      const guard = guards[0] || { id: 'GRD001', name: 'Balwant Singh' };
+    // 4. Check Security Guard Role
+    if (
+      requestedRole === ROLES.GUARD ||
+      trimmed === 'guard' ||
+      trimmed.includes('guard@') ||
+      trimmed.startsWith('grd') ||
+      guards.some(
+        (g) =>
+          g.email?.toLowerCase() === trimmed ||
+          g.id.toLowerCase() === trimmed ||
+          (cleanNum.length >= 6 && g.mobile.replace(/\D/g, '').includes(cleanNum))
+      )
+    ) {
+      const matchedGuard =
+        guards.find(
+          (g) =>
+            g.email?.toLowerCase() === trimmed ||
+            g.id.toLowerCase() === trimmed ||
+            (cleanNum.length >= 6 && g.mobile.replace(/\D/g, '').includes(cleanNum))
+        ) || guards[0] || { id: 'GRD001', name: 'Balwant Singh' };
+
       const user = {
-        id: guard.id,
+        id: matchedGuard.id,
         role: ROLES.GUARD,
-        name: guard.name,
-        email: guard.email || 'guard@hosteleasy.demo',
-        gateNumber: guard.gateNumber || 'Main Gate 1',
-        avatar: guard.avatar,
+        name: matchedGuard.name,
+        email: matchedGuard.email || 'guard@hosteleasy.demo',
+        gateNumber: matchedGuard.gateNumber || 'Main Gate 1',
+        avatar: matchedGuard.avatar,
       };
       setCurrentUser(user);
       await MockDataService.saveSession(user);
@@ -149,7 +229,7 @@ export function AppProvider({ children }) {
 
     return {
       success: false,
-      message: 'Invalid email or password. Please use demo credentials or 1-tap quick role selector.',
+      message: 'Invalid credentials. Select your role tab or tap a 1-tap quick login card below.',
     };
   };
 

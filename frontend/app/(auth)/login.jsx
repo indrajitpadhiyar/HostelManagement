@@ -26,31 +26,105 @@ import {
   ShieldCheck,
   Check,
   Sparkles,
+  Zap,
+  ArrowRight,
 } from 'lucide-react-native';
+
+const ROLE_CONFIGS = {
+  [ROLES.STUDENT]: {
+    id: ROLES.STUDENT,
+    label: 'Student',
+    title: 'Student Portal',
+    sub: 'Apply for leaves, check attendance & gate pass clearance',
+    inputLabel: 'Student Roll No or Email',
+    placeholder: 'e.g. EN2022001 or student@hosteleasy.demo',
+    icon: User,
+    color: '#2563EB',
+    gradient: ['#2563EB', '#1D4ED8'],
+    pillBg: 'rgba(219, 234, 254, 0.7)',
+    borderColor: '#93C5FD',
+    demoCred: 'EN2022001',
+    demoPass: 'Password@123',
+    demoName: 'Aarav Sharma (Room A-204)',
+  },
+  [ROLES.PARENT]: {
+    id: ROLES.PARENT,
+    label: 'Parent',
+    title: 'Parent Portal',
+    sub: 'Authorize or reject ward leaves & track movements',
+    inputLabel: 'Registered Parent Mobile or Email',
+    placeholder: 'e.g. 9876543211 or parent@hosteleasy.demo',
+    icon: Heart,
+    color: '#E11D48',
+    gradient: ['#E11D48', '#BE123C'],
+    pillBg: 'rgba(254, 226, 226, 0.7)',
+    borderColor: '#FCA5A5',
+    demoCred: 'parent@hosteleasy.demo',
+    demoPass: 'Password@123',
+    demoName: 'Rajesh Sharma',
+  },
+  [ROLES.WARDEN]: {
+    id: ROLES.WARDEN,
+    label: 'Warden',
+    title: 'Chief Warden Portal',
+    sub: 'Approve gate passes, log roll call & oversee hostel operations',
+    inputLabel: 'Warden ID or Staff Email',
+    placeholder: 'e.g. warden@hosteleasy.demo or Dr. Rameshwar',
+    icon: Shield,
+    color: '#059669',
+    gradient: ['#059669', '#047857'],
+    pillBg: 'rgba(209, 250, 229, 0.7)',
+    borderColor: '#6EE7B7',
+    demoCred: 'warden@hosteleasy.demo',
+    demoPass: 'Password@123',
+    demoName: 'Dr. Rameshwar Upadhyay',
+  },
+  [ROLES.GUARD]: {
+    id: ROLES.GUARD,
+    label: 'Guard',
+    title: 'Gate Security Terminal',
+    sub: 'Verify student QR passes, log departures & campus check-ins',
+    inputLabel: 'Guard Security ID or Email',
+    placeholder: 'e.g. guard@hosteleasy.demo or GRD001',
+    icon: ShieldCheck,
+    color: '#D97706',
+    gradient: ['#D97706', '#B45309'],
+    pillBg: 'rgba(254, 243, 199, 0.7)',
+    borderColor: '#FCD34D',
+    demoCred: 'guard@hosteleasy.demo',
+    demoPass: 'Password@123',
+    demoName: 'Balwant Singh (Main Gate 1)',
+  },
+};
 
 export default function LoginScreen() {
   const router = useRouter();
   const { login, switchDemoRole } = useApp();
 
+  const [activeRole, setActiveRole] = useState(ROLES.STUDENT);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const currentConfig = ROLE_CONFIGS[activeRole];
+
+  const handleRoleTabChange = (role) => {
+    setActiveRole(role);
+    setErrorMsg('');
+  };
+
   const handleLogin = async () => {
     setErrorMsg('');
-    if (!email.trim()) {
-      setErrorMsg('Please enter your email or mobile number.');
-      return;
-    }
-    if (!password.trim()) {
-      setErrorMsg('Please enter your password.');
+    const inputId = email.trim();
+    if (!inputId) {
+      setErrorMsg(`Please enter your ${currentConfig.inputLabel.toLowerCase()}.`);
       return;
     }
 
     setLoading(true);
-    const res = await login(email, password);
+    const res = await login(inputId, password, activeRole);
     setLoading(false);
 
     if (!res.success) {
@@ -60,9 +134,16 @@ export default function LoginScreen() {
 
   const handleQuickRole = async (role) => {
     setErrorMsg('');
+    setActiveRole(role);
     setLoading(true);
     await switchDemoRole(role);
     setLoading(false);
+  };
+
+  const handleAutoFill = () => {
+    setEmail(currentConfig.demoCred);
+    setPassword(currentConfig.demoPass);
+    setErrorMsg('');
   };
 
   return (
@@ -98,24 +179,81 @@ export default function LoginScreen() {
               <Sparkles size={16} color={COLORS.primary} style={{ marginLeft: 6 }} />
             </View>
             <Text style={styles.brandSubtitle}>
-              Smart Hostel & Student Leave Management
+              Smart Hostel Clearance & Multi-Tier Management
             </Text>
+          </View>
+
+          {/* Interactive Role Selector Bar */}
+          <View style={styles.roleTabsContainer}>
+            <Text style={styles.roleTabsTitle}>SELECT YOUR PORTAL</Text>
+            <View style={styles.roleTabsRow}>
+              {Object.values(ROLE_CONFIGS).map((cfg) => {
+                const isActive = activeRole === cfg.id;
+                const IconComponent = cfg.icon;
+                return (
+                  <TouchableOpacity
+                    key={cfg.id}
+                    style={[
+                      styles.roleTab,
+                      isActive && {
+                        backgroundColor: '#FFFFFF',
+                        borderColor: cfg.borderColor,
+                        shadowColor: cfg.color,
+                        shadowOpacity: 0.18,
+                        shadowRadius: 8,
+                        elevation: 4,
+                      },
+                    ]}
+                    onPress={() => handleRoleTabChange(cfg.id)}
+                    activeOpacity={0.8}
+                  >
+                    {isActive ? (
+                      <LinearGradient
+                        colors={cfg.gradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.activeTabIconCircle}
+                      >
+                        <IconComponent size={14} color="#FFFFFF" />
+                      </LinearGradient>
+                    ) : (
+                      <View style={[styles.inactiveTabIconCircle, { backgroundColor: cfg.pillBg }]}>
+                        <IconComponent size={14} color={cfg.color} />
+                      </View>
+                    )}
+                    <Text
+                      style={[
+                        styles.roleTabText,
+                        isActive && { color: cfg.color, fontWeight: '800' },
+                      ]}
+                    >
+                      {cfg.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* Frosted Liquid Glass Login Card */}
           <View style={styles.glassFormCard}>
             <LinearGradient
-              colors={['rgba(255, 255, 255, 0.95)', 'rgba(240, 246, 255, 0.82)']}
+              colors={['rgba(255, 255, 255, 0.98)', 'rgba(240, 246, 255, 0.88)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.glassInner}
             >
               <View style={styles.topGloss} />
 
-              <Text style={styles.welcomeTitle}>Welcome Back</Text>
-              <Text style={styles.welcomeSub}>
-                Sign in with your registered credentials
-              </Text>
+              {/* Dynamic Active Portal Banner */}
+              <View style={[styles.activePortalHeader, { borderLeftColor: currentConfig.color }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.activePortalTitle, { color: currentConfig.color }]}>
+                    {currentConfig.title}
+                  </Text>
+                  <Text style={styles.activePortalSub}>{currentConfig.sub}</Text>
+                </View>
+              </View>
 
               {errorMsg ? (
                 <View style={styles.errorBanner}>
@@ -123,23 +261,37 @@ export default function LoginScreen() {
                 </View>
               ) : null}
 
+              {/* Input: Identifier */}
               <CustomInput
-                label="Email or Mobile"
-                placeholder="e.g. student@hosteleasy.demo"
+                label={currentConfig.inputLabel}
+                placeholder={currentConfig.placeholder}
                 value={email}
                 onChangeText={setEmail}
-                leftIcon={Mail}
-                keyboardType="email-address"
+                leftIcon={currentConfig.icon}
+                autoCapitalize="none"
               />
 
+              {/* Input: Password */}
               <CustomInput
                 label="Password"
-                placeholder="Enter your password"
+                placeholder="Enter your account password"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
                 leftIcon={Lock}
               />
+
+              {/* 1-Tap Auto Fill Helper Pill */}
+              <TouchableOpacity
+                style={[styles.autoFillPill, { borderColor: currentConfig.borderColor }]}
+                onPress={handleAutoFill}
+                activeOpacity={0.7}
+              >
+                <Zap size={13} color={currentConfig.color} style={{ marginRight: 6 }} />
+                <Text style={styles.autoFillText}>
+                  Quick Fill: <Text style={{ fontWeight: '700', color: currentConfig.color }}>{currentConfig.demoCred}</Text>
+                </Text>
+              </TouchableOpacity>
 
               {/* Remember Me & Forgot Password */}
               <View style={styles.optionsRow}>
@@ -162,8 +314,9 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Primary Sign In Button */}
               <PrimaryButton
-                title="Sign In to Dashboard"
+                title={`Sign In to ${currentConfig.label} Portal`}
                 onPress={handleLogin}
                 loading={loading}
                 style={styles.loginButton}
@@ -171,57 +324,65 @@ export default function LoginScreen() {
             </LinearGradient>
           </View>
 
-          {/* Liquid Glass 1-Tap Quick Demo Role Selector */}
+          {/* Direct 1-Tap Quick Role Access Cards */}
           <View style={styles.demoSection}>
             <View style={styles.demoHeaderRow}>
               <View style={styles.demoDivider} />
-              <Text style={styles.demoHeaderTitle}>1-TAP DEMO ROLES</Text>
+              <Text style={styles.demoHeaderTitle}>DIRECT 1-TAP ROLE ACCESS</Text>
               <View style={styles.demoDivider} />
             </View>
             <Text style={styles.demoHeaderSub}>
-              Switch between all four roles instantly with persistent state
+              Enter portals instantly with verified role permissions
             </Text>
 
             <View style={styles.roleGrid}>
               {/* Student */}
               <TouchableOpacity
-                style={[styles.roleCard, email.includes('student') && styles.roleCardActive]}
+                style={[styles.roleCard, activeRole === ROLES.STUDENT && styles.roleCardActive]}
                 onPress={() => handleQuickRole(ROLES.STUDENT)}
-                activeOpacity={0.75}
+                activeOpacity={0.8}
               >
                 <View style={styles.roleCardGloss} />
                 <LinearGradient
                   colors={['rgba(219, 234, 254, 0.9)', 'rgba(191, 219, 254, 0.6)']}
                   style={styles.roleIconCircle}
                 >
-                  <User size={20} color={COLORS.primary} />
+                  <User size={20} color="#2563EB" />
                 </LinearGradient>
                 <Text style={styles.roleName}>Student</Text>
                 <Text style={styles.roleDetail}>Aarav Sharma (A-204)</Text>
+                <View style={styles.roleCardFooter}>
+                  <Text style={[styles.roleActionText, { color: '#2563EB' }]}>Enter Portal</Text>
+                  <ArrowRight size={12} color="#2563EB" />
+                </View>
               </TouchableOpacity>
 
               {/* Parent */}
               <TouchableOpacity
-                style={[styles.roleCard, email.includes('parent') && styles.roleCardActive]}
+                style={[styles.roleCard, activeRole === ROLES.PARENT && styles.roleCardActive]}
                 onPress={() => handleQuickRole(ROLES.PARENT)}
-                activeOpacity={0.75}
+                activeOpacity={0.8}
               >
                 <View style={styles.roleCardGloss} />
                 <LinearGradient
                   colors={['rgba(254, 226, 226, 0.9)', 'rgba(254, 202, 202, 0.6)']}
                   style={styles.roleIconCircle}
                 >
-                  <Heart size={20} color="#DC2626" />
+                  <Heart size={20} color="#E11D48" />
                 </LinearGradient>
                 <Text style={styles.roleName}>Parent</Text>
                 <Text style={styles.roleDetail}>Rajesh Sharma</Text>
+                <View style={styles.roleCardFooter}>
+                  <Text style={[styles.roleActionText, { color: '#E11D48' }]}>Enter Portal</Text>
+                  <ArrowRight size={12} color="#E11D48" />
+                </View>
               </TouchableOpacity>
 
               {/* Warden */}
               <TouchableOpacity
-                style={[styles.roleCard, email.includes('warden') && styles.roleCardActive]}
+                style={[styles.roleCard, activeRole === ROLES.WARDEN && styles.roleCardActive]}
                 onPress={() => handleQuickRole(ROLES.WARDEN)}
-                activeOpacity={0.75}
+                activeOpacity={0.8}
               >
                 <View style={styles.roleCardGloss} />
                 <LinearGradient
@@ -231,14 +392,18 @@ export default function LoginScreen() {
                   <Shield size={20} color="#059669" />
                 </LinearGradient>
                 <Text style={styles.roleName}>Warden</Text>
-                <Text style={styles.roleDetail}>Dr. Rameshwar U.</Text>
+                <Text style={styles.roleDetail}>Dr. Rameshwar Upadhyay</Text>
+                <View style={styles.roleCardFooter}>
+                  <Text style={[styles.roleActionText, { color: '#059669' }]}>Enter Portal</Text>
+                  <ArrowRight size={12} color="#059669" />
+                </View>
               </TouchableOpacity>
 
               {/* Guard */}
               <TouchableOpacity
-                style={[styles.roleCard, email.includes('guard') && styles.roleCardActive]}
+                style={[styles.roleCard, activeRole === ROLES.GUARD && styles.roleCardActive]}
                 onPress={() => handleQuickRole(ROLES.GUARD)}
-                activeOpacity={0.75}
+                activeOpacity={0.8}
               >
                 <View style={styles.roleCardGloss} />
                 <LinearGradient
@@ -249,6 +414,10 @@ export default function LoginScreen() {
                 </LinearGradient>
                 <Text style={styles.roleName}>Security Guard</Text>
                 <Text style={styles.roleDetail}>Balwant Singh (Gate 1)</Text>
+                <View style={styles.roleCardFooter}>
+                  <Text style={[styles.roleActionText, { color: '#D97706' }]}>Enter Portal</Text>
+                  <ArrowRight size={12} color="#D97706" />
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -300,19 +469,20 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingVertical: 20,
+    paddingBottom: 32,
   },
   brandContainer: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   logoBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
@@ -336,16 +506,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   brandTitle: {
-    fontSize: 27,
+    fontSize: 26,
     fontWeight: '800',
     color: COLORS.textPrimary,
     letterSpacing: -0.5,
   },
   brandSubtitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: COLORS.textSecondary,
-    marginTop: 4,
+    marginTop: 3,
     fontWeight: '500',
+    textAlign: 'center',
+  },
+  roleTabsContainer: {
+    marginBottom: 12,
+  },
+  roleTabsTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: COLORS.textMuted,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  roleTabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  roleTab: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(226, 232, 240, 0.8)',
+  },
+  activeTabIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  inactiveTabIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  roleTabText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
   },
   glassFormCard: {
     borderRadius: 22,
@@ -357,10 +576,10 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 3,
     overflow: 'hidden',
-    marginBottom: 22,
+    marginBottom: 20,
   },
   glassInner: {
-    padding: 22,
+    padding: 20,
     position: 'relative',
   },
   topGloss: {
@@ -371,17 +590,20 @@ const styles = StyleSheet.create({
     height: 1.5,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
-  welcomeTitle: {
-    fontSize: 19,
+  activePortalHeader: {
+    borderLeftWidth: 3.5,
+    paddingLeft: 10,
+    marginBottom: 16,
+  },
+  activePortalTitle: {
+    fontSize: 17,
     fontWeight: '800',
-    color: COLORS.textPrimary,
     letterSpacing: -0.3,
   },
-  welcomeSub: {
-    fontSize: 13,
+  activePortalSub: {
+    fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: 2,
-    marginBottom: 18,
   },
   errorBanner: {
     backgroundColor: 'rgba(254, 226, 226, 0.85)',
@@ -396,11 +618,26 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '600',
   },
+  autoFillPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
+  autoFillText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
   optionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   rememberRow: {
     flexDirection: 'row',
@@ -448,11 +685,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(203, 213, 225, 0.6)',
   },
   demoHeaderTitle: {
-    marginHorizontal: 12,
     fontSize: 11,
     fontWeight: '800',
-    color: COLORS.textMuted,
     letterSpacing: 0.8,
+    color: COLORS.textMuted,
+    marginHorizontal: 12,
   },
   demoHeaderSub: {
     fontSize: 12,
@@ -463,46 +700,43 @@ const styles = StyleSheet.create({
   roleGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 12,
   },
   roleCard: {
-    width: '48.5%',
+    width: '48%',
     backgroundColor: 'rgba(255, 255, 255, 0.85)',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1.2,
     borderColor: COLORS.glassBorder,
-    alignItems: 'center',
-    position: 'relative',
     shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 1,
+    shadowRadius: 8,
+    elevation: 2,
+    position: 'relative',
+    overflow: 'hidden',
   },
   roleCardActive: {
     borderColor: COLORS.primary,
-    backgroundColor: 'rgba(239, 246, 255, 0.95)',
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.15,
+    backgroundColor: '#FFFFFF',
+    shadowOpacity: 0.12,
   },
   roleCardGloss: {
     position: 'absolute',
     top: 0,
     left: 8,
     right: 8,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   roleIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
   },
   roleName: {
     fontSize: 14,
@@ -513,7 +747,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
     marginTop: 2,
-    textAlign: 'center',
-    fontWeight: '500',
+    marginBottom: 8,
+  },
+  roleCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(241, 245, 249, 0.9)',
+  },
+  roleActionText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
