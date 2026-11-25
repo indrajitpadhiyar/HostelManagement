@@ -26,85 +26,103 @@ export default function AppHeader({
     (n) => n.role === currentUser?.role && !n.read
   ).length;
 
-  const navigateToSectionHome = () => {
-    if (fallbackRoute) {
-      router.replace(fallbackRoute);
-      return;
+  const getDestinationRoute = () => {
+    if (fallbackRoute) return fallbackRoute;
+
+    const path = (pathname || '').toLowerCase();
+    const role = currentUser?.role;
+
+    // 1. Student section routes
+    if (path.includes('leave-details') && (role === 'student' || path.includes('student'))) {
+      return '/(student)/leave-history';
+    }
+    if (path.includes('extend-leave')) {
+      return '/(student)/leave-history';
+    }
+    if (
+      path.includes('apply-leave') ||
+      path.includes('leave-history') ||
+      path.includes('profile') ||
+      (path.includes('notifications') && role === 'student')
+    ) {
+      return '/(student)/dashboard';
     }
 
-    const path = pathname || '';
-
-    // Student section
-    if (path.includes('(student)')) {
-      if (path.includes('leave-details') || path.includes('extend-leave')) {
-        router.replace('/(student)/leave-history');
-      } else {
-        router.replace('/(student)/dashboard');
-      }
-      return;
+    // 2. Security Guard section routes
+    if (
+      path.includes('approved-leaves') ||
+      path.includes('gate-exit') ||
+      path.includes('gate-return') ||
+      path.includes('gate-history') ||
+      path.includes('gate-logs') ||
+      path.includes('verify-student') ||
+      path.includes('qr-scanner') ||
+      (path.includes('notifications') && role === 'guard')
+    ) {
+      return '/(guard)/dashboard';
     }
 
-    // Security Guard section
-    if (path.includes('(guard)')) {
-      router.replace('/(guard)/dashboard');
-      return;
+    // 3. Warden section routes
+    if (path.includes('student-details')) {
+      return '/(warden)/students';
+    }
+    if (path.includes('leave-details') && (role === 'warden' || path.includes('warden'))) {
+      return '/(warden)/leave-requests';
+    }
+    if (
+      path.includes('attendance') ||
+      path.includes('students') ||
+      path.includes('rooms') ||
+      path.includes('guards') ||
+      path.includes('reports') ||
+      path.includes('activities') ||
+      path.includes('leave-requests') ||
+      (path.includes('notifications') && role === 'warden')
+    ) {
+      return '/(warden)/dashboard';
     }
 
-    // Warden section
-    if (path.includes('(warden)')) {
-      if (path.includes('student-details')) {
-        router.replace('/(warden)/students');
-      } else if (path.includes('leave-details')) {
-        router.replace('/(warden)/leave-requests');
-      } else {
-        router.replace('/(warden)/dashboard');
-      }
-      return;
+    // 4. Parent section routes
+    if (path.includes('leave-details') && (role === 'parent' || path.includes('parent'))) {
+      return '/(parent)/approvals';
+    }
+    if (
+      path.includes('approvals') ||
+      path.includes('history') ||
+      (path.includes('notifications') && role === 'parent')
+    ) {
+      return '/(parent)/dashboard';
     }
 
-    // Parent section
-    if (path.includes('(parent)')) {
-      if (path.includes('leave-details')) {
-        router.replace('/(parent)/approvals');
-      } else {
-        router.replace('/(parent)/dashboard');
-      }
-      return;
+    // 5. Auth routes
+    if (path.includes('forgot-password') || path.includes('register')) {
+      return '/(auth)/login';
     }
 
-    // Auth section
-    if (path.includes('(auth)')) {
-      router.replace('/(auth)/login');
-      return;
-    }
+    // 6. Role fallback
+    if (role === 'warden') return '/(warden)/dashboard';
+    if (role === 'guard') return '/(guard)/dashboard';
+    if (role === 'parent') return '/(parent)/dashboard';
+    if (role === 'student') return '/(student)/dashboard';
 
-    // Default by current user role
-    if (currentUser?.role) {
-      const roleHomeMap = {
-        student: '/(student)/dashboard',
-        parent: '/(parent)/dashboard',
-        warden: '/(warden)/dashboard',
-        guard: '/(guard)/dashboard',
-      };
-      router.replace(roleHomeMap[currentUser.role] || '/(auth)/login');
-    } else {
-      router.replace('/(auth)/login');
-    }
+    return '/(auth)/login';
   };
 
   const handleBack = () => {
     const customHandler = onBack || onBackPress;
 
     if (customHandler) {
-      // Check if the custom handler is simply calling router.back()
       const handlerStr = customHandler.toString().replace(/\s+/g, '');
       const isSimpleRouterBack =
-        handlerStr.includes('router.back()') &&
-        !handlerStr.includes('if') &&
-        !handlerStr.includes('else') &&
-        !handlerStr.includes('set') &&
-        !handlerStr.includes('Step');
+        handlerStr === '()=>router.back()' ||
+        handlerStr === 'function(){returnrouter.back();}' ||
+        (handlerStr.includes('router.back()') &&
+          !handlerStr.includes('if') &&
+          !handlerStr.includes('else') &&
+          !handlerStr.includes('set') &&
+          !handlerStr.includes('Step'));
 
+      // If screen provided a custom handler with state or multi-step logic, run it!
       if (!isSimpleRouterBack) {
         try {
           customHandler();
@@ -115,12 +133,14 @@ export default function AppHeader({
       }
     }
 
-    // Default back behavior:
-    // If router can pop stack history, pop it; otherwise use section home fallback
-    if (router.canGoBack()) {
+    // Always navigate to the deterministic, reliable parent route so the back button NEVER fails
+    const dest = getDestinationRoute();
+    if (dest) {
+      router.replace(dest);
+    } else if (router.canGoBack()) {
       router.back();
     } else {
-      navigateToSectionHome();
+      router.replace('/(auth)/login');
     }
   };
 

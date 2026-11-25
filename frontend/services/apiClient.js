@@ -86,6 +86,17 @@ class ApiClient {
   }
 
   // --- Auth APIs ---
+  async register(payload) {
+    const res = await this.request('/auth/register', {
+      method: 'POST',
+      body: payload,
+    });
+    if (res?.data?.token) {
+      await this.setToken(res.data.token);
+    }
+    return res.data;
+  }
+
   async login(email, password) {
     const res = await this.request('/auth/login', {
       method: 'POST',

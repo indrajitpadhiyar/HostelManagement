@@ -229,7 +229,7 @@ export function AppProvider({ children }) {
 
     return {
       success: false,
-      message: 'Invalid credentials. Select your role tab or tap a 1-tap quick login card below.',
+      message: 'Invalid credentials. Please verify your details or create a new account.',
     };
   };
 
@@ -246,6 +246,135 @@ export function AppProvider({ children }) {
     if (role === ROLES.GUARD) {
       return login('guard@hosteleasy.demo', 'demo123');
     }
+  };
+
+  const register = async (userData) => {
+    const { name, email, password, role, mobile, enrollmentNo, roomNo, department, block, gateNumber } = userData;
+
+    if (!name?.trim() || !email?.trim() || !password?.trim()) {
+      return { success: false, message: 'Please fill in all required fields.' };
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+
+    // Check if email already exists
+    if (
+      students.some((s) => s.email.toLowerCase() === trimmedEmail) ||
+      wardens.some((w) => w.email.toLowerCase() === trimmedEmail) ||
+      parents.some((p) => p.email.toLowerCase() === trimmedEmail) ||
+      guards.some((g) => g.email?.toLowerCase() === trimmedEmail)
+    ) {
+      return { success: false, message: 'An account with this email address already exists.' };
+    }
+
+    let newUser;
+
+    if (role === ROLES.STUDENT) {
+      const studentId = `STU${Date.now().toString().slice(-4)}`;
+      const newStudent = {
+        id: studentId,
+        name: name.trim(),
+        enrollmentNo: (enrollmentNo || `EN${Date.now().toString().slice(-6)}`).toUpperCase().trim(),
+        department: department || 'Computer Science & Engineering',
+        deptCode: department?.slice(0, 3)?.toUpperCase() || 'CSE',
+        semester: '1st Semester',
+        roomNo: roomNo || 'A-101',
+        block: block || 'Block A',
+        email: trimmedEmail,
+        mobile: mobile?.trim() || '+91 98765 00000',
+        parentId: '',
+        parentName: '',
+        parentMobile: '',
+        parentEmail: '',
+        hostelStatus: HOSTEL_STATUS.PRESENT,
+        admissionDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        bloodGroup: 'B+',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
+        academicHistory: [],
+      };
+
+      setStudents((prev) => [newStudent, ...prev]);
+
+      newUser = {
+        id: newStudent.id,
+        role: ROLES.STUDENT,
+        name: newStudent.name,
+        email: newStudent.email,
+        enrollmentNo: newStudent.enrollmentNo,
+        roomNo: newStudent.roomNo,
+        department: newStudent.department,
+        avatar: newStudent.avatar,
+      };
+    } else if (role === ROLES.PARENT) {
+      const parentId = `PAR${Date.now().toString().slice(-4)}`;
+      const linkedStudent = students[0];
+      const newParent = {
+        id: parentId,
+        name: name.trim(),
+        email: trimmedEmail,
+        mobile: mobile?.trim() || '+91 98765 00000',
+        relationship: 'Parent / Guardian',
+        occupation: 'Guardian',
+        address: 'Registered Residence',
+        studentIds: [linkedStudent?.id || 'STU001'],
+        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
+      };
+
+      newUser = {
+        id: newParent.id,
+        role: ROLES.PARENT,
+        name: newParent.name,
+        email: newParent.email,
+        studentId: linkedStudent?.id || 'STU001',
+        studentName: linkedStudent?.name || 'Student',
+        avatar: newParent.avatar,
+      };
+    } else if (role === ROLES.WARDEN) {
+      const wardenId = `WAR${Date.now().toString().slice(-4)}`;
+      newUser = {
+        id: wardenId,
+        role: ROLES.WARDEN,
+        name: name.trim(),
+        email: trimmedEmail,
+        block: block || 'Block A & B (Hostel Warden)',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&auto=format&fit=crop&q=80',
+      };
+    } else if (role === ROLES.GUARD) {
+      const guardId = `GRD${Date.now().toString().slice(-4)}`;
+      const newGuard = {
+        id: guardId,
+        name: name.trim(),
+        email: trimmedEmail,
+        mobile: mobile?.trim() || '+91 98765 00000',
+        gateNumber: gateNumber || 'Main Gate 1',
+        shift: 'Day Shift (06:00 AM - 02:00 PM)',
+        status: 'ON_DUTY',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
+      };
+      setGuards((prev) => [newGuard, ...prev]);
+
+      newUser = {
+        id: newGuard.id,
+        role: ROLES.GUARD,
+        name: newGuard.name,
+        email: newGuard.email,
+        gateNumber: newGuard.gateNumber,
+        avatar: newGuard.avatar,
+      };
+    }
+
+    setCurrentUser(newUser);
+    await MockDataService.saveSession(newUser);
+
+    const roleTarget = {
+      [ROLES.STUDENT]: '/(student)/dashboard',
+      [ROLES.PARENT]: '/(parent)/dashboard',
+      [ROLES.WARDEN]: '/(warden)/dashboard',
+      [ROLES.GUARD]: '/(guard)/dashboard',
+    };
+
+    router.replace(roleTarget[role] || '/(auth)/login');
+    return { success: true };
   };
 
   const logout = async () => {
@@ -1148,6 +1277,7 @@ export function AppProvider({ children }) {
     isLoading,
     currentUser,
     login,
+    register,
     switchDemoRole,
     logout,
     students,

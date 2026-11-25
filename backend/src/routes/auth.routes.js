@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  register,
   login,
   getMe,
   switchDemoRole,
@@ -10,6 +11,7 @@ import { authRateLimiter } from '../middlewares/rateLimiter.middleware.js';
 
 const router = Router();
 
+router.post('/register', authRateLimiter, register);
 router.post('/login', authRateLimiter, login);
 router.post('/switch-demo', switchDemoRole);
 router.get('/me', protect, getMe);

@@ -174,3 +174,64 @@ export const switchDemoRole = asyncHandler(async (req, res) => {
 export const logout = asyncHandler(async (req, res) => {
   res.status(200).json(ApiResponse.success(null, 'Logged out successfully'));
 });
+
+/**
+ * @desc    Register a new user account (Student, Parent, Warden, Guard)
+ * @route   POST /api/v1/auth/register
+ * @access  Public
+ */
+export const register = asyncHandler(async (req, res) => {
+  const { name, email, password, role, mobile, enrollmentNo, roomNo, department, block, gateNumber } = req.body;
+
+  if (!name || !email || !password || !role) {
+    throw new ApiError(400, 'Name, email, password, and role are required');
+  }
+
+  const existing = await User.findOne({ email: email.toLowerCase().trim() });
+  if (existing) {
+    throw new ApiError(409, 'An account with this email address already exists');
+  }
+
+  const user = await User.create({
+    name: name.trim(),
+    email: email.toLowerCase().trim(),
+    password,
+    role,
+    mobile: mobile || '',
+  });
+
+  // Create linked document for specialized roles
+  if (role === ROLES.STUDENT) {
+    await Student.create({
+      userId: user._id,
+      enrollmentNo: enrollmentNo || `EN${Date.now().toString().slice(-6)}`,
+      name: user.name,
+      email: user.email,
+      phone: user.mobile,
+      roomNo: roomNo || 'A-101',
+      block: block || 'Block A',
+      department: department || 'Computer Science & Engineering',
+    });
+  } else if (role === ROLES.GUARD) {
+    await Guard.create({
+      userId: user._id,
+      guardId: `GRD-${Date.now().toString().slice(-4)}`,
+      name: user.name,
+      mobile: user.mobile,
+      gateNumber: gateNumber || 'Main Gate 1',
+    });
+  }
+
+  const token = generateToken(user._id);
+  const userProfile = await buildUserProfile(user);
+
+  res.status(201).json(
+    ApiResponse.created(
+      {
+        user: userProfile,
+        token,
+      },
+      'User account created successfully'
+    )
+  );
+});

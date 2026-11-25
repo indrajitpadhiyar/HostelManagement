@@ -26,7 +26,6 @@ import {
   ShieldCheck,
   Check,
   Sparkles,
-  Zap,
 } from 'lucide-react-native';
 
 const ROLE_CONFIGS = {
@@ -129,12 +128,6 @@ export default function LoginScreen() {
     if (!res.success) {
       setErrorMsg(res.message);
     }
-  };
-
-  const handleAutoFill = () => {
-    setEmail(currentConfig.demoCred);
-    setPassword(currentConfig.demoPass);
-    setErrorMsg('');
   };
 
   return (
@@ -272,18 +265,6 @@ export default function LoginScreen() {
                 leftIcon={Lock}
               />
 
-              {/* 1-Tap Auto Fill Helper Pill */}
-              <TouchableOpacity
-                style={[styles.autoFillPill, { borderColor: currentConfig.borderColor }]}
-                onPress={handleAutoFill}
-                activeOpacity={0.7}
-              >
-                <Zap size={13} color={currentConfig.color} style={{ marginRight: 6 }} />
-                <Text style={styles.autoFillText}>
-                  Quick Fill: <Text style={{ fontWeight: '700', color: currentConfig.color }}>{currentConfig.demoCred}</Text>
-                </Text>
-              </TouchableOpacity>
-
               {/* Remember Me & Forgot Password */}
               <View style={styles.optionsRow}>
                 <TouchableOpacity
@@ -312,6 +293,19 @@ export default function LoginScreen() {
                 loading={loading}
                 style={styles.loginButton}
               />
+
+              {/* Create Account Prompt */}
+              <View style={styles.registerPromptRow}>
+                <Text style={styles.registerPromptText}>Don't have an account? </Text>
+                <TouchableOpacity
+                  onPress={() => router.push('/(auth)/register')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.registerPromptLink, { color: currentConfig.color }]}>
+                    Create Account
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </LinearGradient>
           </View>
         </ScrollView>
@@ -511,21 +505,6 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '600',
   },
-  autoFillPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    marginBottom: 14,
-  },
-  autoFillText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
   optionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -563,5 +542,23 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     height: 50,
+  },
+  registerPromptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 18,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(226, 232, 240, 0.7)',
+  },
+  registerPromptText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  registerPromptLink: {
+    fontSize: 13.5,
+    fontWeight: '800',
   },
 });
