@@ -48,6 +48,7 @@ export default function ApplyLeave() {
   const [emergencyContact, setEmergencyContact] = useState(student?.parentMobile || '');
 
   // Dates (dynamically starting from tomorrow)
+  const todayStr = new Date().toISOString().split('T')[0];
   const tomorrowObj = new Date();
   tomorrowObj.setDate(tomorrowObj.getDate() + 1);
   const returnObj = new Date(tomorrowObj);
