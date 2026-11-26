@@ -278,8 +278,28 @@ class ApiClient {
     return res.data;
   }
 
+  async getMonthlyAttendance(month) {
+    const query = month ? `?month=${month}` : '';
+    const res = await this.request(`/attendance/monthly${query}`);
+    return res.data;
+  }
+
+  async getDayAttendance(date) {
+    const query = date ? `?date=${date}` : '';
+    const res = await this.request(`/attendance/day${query}`);
+    return res.data;
+  }
+
   async markAttendance(payload) {
     const res = await this.request('/attendance/mark', {
+      method: 'POST',
+      body: payload,
+    });
+    return res.data;
+  }
+
+  async saveBatchAttendance(payload) {
+    const res = await this.request('/attendance/batch', {
       method: 'POST',
       body: payload,
     });

@@ -3,6 +3,7 @@ import { ApiResponse } from '../utils/apiResponse.js';
 import { ApiError } from '../utils/apiError.js';
 import { Attendance } from '../models/Attendance.js';
 import { Student } from '../models/Student.js';
+import { Activity } from '../models/Activity.js';
 import { ROLES } from '../config/constants.js';
 
 /**
@@ -146,7 +147,7 @@ export const getAttendanceOverview = asyncHandler(async (req, res) => {
   const todayStr = new Date().toISOString().split('T')[0];
 
   const [totalStudents, todayRecords] = await Promise.all([
-    Student.countDocuments({ status: 'ACTIVE' }),
+    Student.countDocuments({ status: { $ne: 'INACTIVE' } }),
     Attendance.find({ date: todayStr }),
   ]);
 
@@ -174,15 +175,208 @@ export const getAttendanceOverview = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Get month-wise attendance for Warden (records grouped by day + monthly statistics)
+ * @route   GET /api/v1/attendance/monthly
+ * @access  Private (Warden)
+ */
+export const getMonthlyAttendance = asyncHandler(async (req, res) => {
+  const { month } = req.query; // format: 'YYYY-MM' (e.g. '2026-11')
+  const targetMonth = month || new Date().toISOString().slice(0, 7);
+
+  const [students, records] = await Promise.all([
+    Student.find({ status: { $ne: 'INACTIVE' } }).lean(),
+    Attendance.find({ date: { $regex: `^${targetMonth}` } }).sort({ date: -1 }).lean(),
+  ]);
+
+  const totalStudents = students.length;
+
+  // Group records by date (e.g. '2026-11-26')
+  const daysMap = {};
+  records.forEach((rec) => {
+    if (!daysMap[rec.date]) {
+      daysMap[rec.date] = [];
+    }
+    daysMap[rec.date].push(rec);
+  });
+
+  // Calculate day-by-day summaries
+  const days = Object.keys(daysMap)
+    .sort((a, b) => b.localeCompare(a))
+    .map((dateStr) => {
+      const dayRecs = daysMap[dateStr];
+      const present = dayRecs.filter((r) => r.status === 'PRESENT').length;
+      const onLeave = dayRecs.filter((r) => r.status === 'ON_LEAVE').length;
+      const absent = dayRecs.filter((r) => r.status === 'ABSENT').length;
+      const late = dayRecs.filter((r) => r.status === 'LATE').length;
+      const totalMarked = dayRecs.length;
+      const rate = totalMarked > 0 ? Math.round(((present + onLeave) / totalMarked) * 100) : 0;
+
+      return {
+        date: dateStr,
+        totalMarked,
+        totalStudents,
+        present,
+        onLeave,
+        absent,
+        late,
+        rate,
+        records: dayRecs,
+      };
+    });
+
+  // Calculate month-wide metrics
+  const totalDaysRecorded = days.length;
+  const totalPresent = records.filter((r) => r.status === 'PRESENT').length;
+  const totalOnLeave = records.filter((r) => r.status === 'ON_LEAVE').length;
+  const totalAbsent = records.filter((r) => r.status === 'ABSENT').length;
+  const averageRate =
+    totalDaysRecorded > 0
+      ? Math.round(days.reduce((acc, d) => acc + d.rate, 0) / totalDaysRecorded)
+      : 100;
+
+  return res.status(200).json(
+    ApiResponse.success(
+      {
+        month: targetMonth,
+        totalStudents,
+        totalDaysRecorded,
+        averageRate,
+        totalPresent,
+        totalOnLeave,
+        totalAbsent,
+        days,
+        records,
+      },
+      'Monthly attendance loaded successfully'
+    )
+  );
+});
+
+/**
+ * @desc    Get attendance records for a specific day (or today if omitted)
+ * @route   GET /api/v1/attendance/day
+ * @access  Private (Warden)
+ */
+export const getDayAttendance = asyncHandler(async (req, res) => {
+  const targetDate = req.query.date || new Date().toISOString().split('T')[0];
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isToday = targetDate === todayStr;
+
+  const [students, records] = await Promise.all([
+    Student.find({ status: { $ne: 'INACTIVE' } }).lean(),
+    Attendance.find({ date: targetDate }).lean(),
+  ]);
+
+  const totalStudents = students.length;
+  const isSaved = records.length > 0;
+
+  const present = records.filter((r) => r.status === 'PRESENT').length;
+  const onLeave = records.filter((r) => r.status === 'ON_LEAVE').length;
+  const absent = records.filter((r) => r.status === 'ABSENT').length;
+  const late = records.filter((r) => r.status === 'LATE').length;
+  const rate = records.length > 0 ? Math.round(((present + onLeave) / records.length) * 100) : 0;
+
+  return res.status(200).json(
+    ApiResponse.success(
+      {
+        date: targetDate,
+        isToday,
+        isSaved,
+        totalStudents,
+        present,
+        onLeave,
+        absent,
+        late,
+        rate,
+        records,
+      },
+      'Day attendance loaded'
+    )
+  );
+});
+
+/**
  * @desc    Mark attendance for a student or batch (Warden only)
  * @route   POST /api/v1/attendance/mark
  * @access  Private (Warden)
  */
 export const markAttendance = asyncHandler(async (req, res) => {
-  const { studentId, date, status, session, remarks } = req.body;
+  const { studentId, date, status, session, remarks, records } = req.body;
+  const targetDate = date || new Date().toISOString().split('T')[0];
+  const currentSession = session || 'NIGHT_ROLL_CALL';
+  const wardenName = req.user?.name || 'Warden';
 
-  if (!studentId || !date || !status) {
-    throw new ApiError(400, 'Student ID, date, and status are mandatory');
+  // Handle batch attendance save
+  if (Array.isArray(records) && records.length > 0) {
+    const studentIds = records.map((r) => r.studentId);
+    const students = await Student.find({ _id: { $in: studentIds } });
+    const studentMap = {};
+    students.forEach((s) => {
+      studentMap[s._id.toString()] = s;
+    });
+
+    const operations = records.map((entry) => {
+      const student = studentMap[entry.studentId];
+      return {
+        updateOne: {
+          filter: { studentId: entry.studentId, date: targetDate },
+          update: {
+            $set: {
+              studentId: entry.studentId,
+              userId: student?.userId || null,
+              studentName: student?.name || entry.studentName || 'Student',
+              enrollmentNo: student?.enrollmentNo || entry.enrollmentNo || '',
+              roomNo: student?.roomNo || entry.roomNo || '',
+              date: targetDate,
+              status: entry.status || 'PRESENT',
+              session: entry.session || currentSession,
+              markedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              markedBy: wardenName,
+              remarks: entry.remarks || '',
+            },
+          },
+          upsert: true,
+        },
+      };
+    });
+
+    await Attendance.bulkWrite(operations);
+
+    const savedRecords = await Attendance.find({ date: targetDate });
+    const presentCount = savedRecords.filter((r) => r.status === 'PRESENT').length;
+    const leaveCount = savedRecords.filter((r) => r.status === 'ON_LEAVE').length;
+    const absentCount = savedRecords.filter((r) => r.status === 'ABSENT').length;
+
+    // Log real Activity audit in MongoDB
+    await Activity.create({
+      studentName: 'Entire Hostel',
+      enrollmentNo: 'ALL',
+      roomNo: 'Hostel Wings',
+      type: 'ROLL_CALL_SAVED',
+      title: 'Daily Roll-Call Saved',
+      description: `Roll-call saved for ${targetDate} (${presentCount} Present, ${leaveCount} On Leave, ${absentCount} Absent).`,
+      badgeType: 'success',
+      status: 'VERIFIED',
+    }).catch(() => {});
+
+    return res.status(200).json(
+      ApiResponse.success(
+        {
+          date: targetDate,
+          total: savedRecords.length,
+          present: presentCount,
+          leave: leaveCount,
+          absent: absentCount,
+          records: savedRecords,
+        },
+        `Attendance for ${targetDate} saved successfully`
+      )
+    );
+  }
+
+  // Handle single student marking
+  if (!studentId || !status) {
+    throw new ApiError(400, 'Student ID and status are mandatory');
   }
 
   const student = await Student.findById(studentId);
@@ -191,18 +385,18 @@ export const markAttendance = asyncHandler(async (req, res) => {
   }
 
   const record = await Attendance.findOneAndUpdate(
-    { studentId, date },
+    { studentId, date: targetDate },
     {
       studentId,
       userId: student.userId,
       studentName: student.name,
       enrollmentNo: student.enrollmentNo,
       roomNo: student.roomNo,
-      date,
+      date: targetDate,
       status,
-      session: session || 'NIGHT_ROLL_CALL',
+      session: currentSession,
       markedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      markedBy: req.user.name || 'Warden',
+      markedBy: wardenName,
       remarks: remarks || '',
     },
     { upsert: true, new: true, runValidators: true }

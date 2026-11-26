@@ -540,6 +540,24 @@ export function AppProvider({ children }) {
     }
   };
 
+  const getDayAttendance = async (date) => {
+    try {
+      return await apiClient.getDayAttendance(date);
+    } catch (err) {
+      console.warn('Failed to load day attendance:', err);
+      return null;
+    }
+  };
+
+  const getMonthlyAttendance = async (month) => {
+    try {
+      return await apiClient.getMonthlyAttendance(month);
+    } catch (err) {
+      console.warn('Failed to load monthly attendance:', err);
+      return null;
+    }
+  };
+
   // --- Guard & Notifications ---
 
   const toggleGuardDuty = (guardId) => {
@@ -627,6 +645,8 @@ export function AppProvider({ children }) {
     attendance,
     markRollCall,
     saveBatchRollCall,
+    getDayAttendance,
+    getMonthlyAttendance,
     // Real Workflows
     submitLeaveRequest,
     parentApproveLeave,
