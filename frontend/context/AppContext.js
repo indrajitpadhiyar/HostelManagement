@@ -238,6 +238,16 @@ export function AppProvider({ children }) {
     try {
       const res = await apiClient.register(userData);
 
+      if (res?.pendingApproval) {
+        return {
+          success: true,
+          pendingApproval: true,
+          message:
+            res.message ||
+            'Registration submitted successfully! Your account is awaiting Warden approval. You can access the student section once the Warden accepts your request.',
+        };
+      }
+
       if (!res?.user) {
         return { success: false, message: 'Registration failed. Unexpected response from server.' };
       }
@@ -558,6 +568,28 @@ export function AppProvider({ children }) {
     }
   };
 
+  const approveStudentRegistration = async (studentId) => {
+    try {
+      const res = await apiClient.approveStudent(studentId);
+      await fetchBackendData(currentUser);
+      return { success: true, student: res };
+    } catch (err) {
+      console.error('Failed to approve student registration:', err);
+      throw err;
+    }
+  };
+
+  const rejectStudentRegistration = async (studentId, reason = '') => {
+    try {
+      const res = await apiClient.rejectStudent(studentId, reason);
+      await fetchBackendData(currentUser);
+      return { success: true, student: res };
+    } catch (err) {
+      console.error('Failed to reject student registration:', err);
+      throw err;
+    }
+  };
+
   // --- Guard & Notifications ---
 
   const toggleGuardDuty = (guardId) => {
@@ -663,6 +695,8 @@ export function AppProvider({ children }) {
     addStudent,
     deleteStudent,
     allocateRoom,
+    approveStudentRegistration,
+    rejectStudentRegistration,
     // Guard & Notifications
     toggleGuardDuty,
     addGuard,

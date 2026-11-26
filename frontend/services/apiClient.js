@@ -232,6 +232,21 @@ class ApiClient {
     return res.data;
   }
 
+  async approveStudent(studentId) {
+    const res = await this.request(`/students/${studentId}/approve`, {
+      method: 'POST',
+    });
+    return res.data;
+  }
+
+  async rejectStudent(studentId, reason = '') {
+    const res = await this.request(`/students/${studentId}/reject`, {
+      method: 'POST',
+      body: { reason },
+    });
+    return res.data;
+  }
+
   async createRoom(payload) {
     const res = await this.request('/rooms', {
       method: 'POST',

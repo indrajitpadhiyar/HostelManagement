@@ -26,17 +26,21 @@ import {
   Award,
   GraduationCap,
   Trash2,
+  Check,
+  X,
+  Sparkles,
 } from 'lucide-react-native';
 
 export default function WardenStudentDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const { students, leaveRequests, deleteStudent } = useApp();
+  const { students, leaveRequests, deleteStudent, approveStudentRegistration, rejectStudentRegistration } = useApp();
 
   const student = students.find((s) => s.id === id || s._id === id);
   const studentLeaves = student ? leaveRequests.filter((r) => r.studentId === student.id || r.studentId === student._id) : [];
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const handleCall = (num) => {
     if (num) Linking.openURL(`tel:${num.replace(/\s+/g, '')}`);
@@ -92,6 +96,54 @@ export default function WardenStudentDetails() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Pending Approval Banner */}
+        {student.approvalStatus === 'PENDING' && (
+          <View style={styles.pendingDetailsBanner}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+              <Sparkles size={16} color="#D97706" style={{ marginRight: 6 }} />
+              <Text style={styles.pendingDetailsTitle}>Registration Awaiting Warden Approval</Text>
+            </View>
+            <Text style={styles.pendingDetailsSub}>
+              This student has registered on the hostel system. Accept their request to activate their account and grant access to the student portal.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+              <TouchableOpacity
+                style={styles.detailsApproveBtn}
+                disabled={actionLoading}
+                onPress={async () => {
+                  setActionLoading(true);
+                  try {
+                    await approveStudentRegistration(student.id);
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <Check size={15} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <Text style={styles.detailsApproveBtnText}>Accept Request</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.detailsRejectBtn}
+                disabled={actionLoading}
+                onPress={async () => {
+                  setActionLoading(true);
+                  try {
+                    await rejectStudentRegistration(student.id);
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <X size={15} color={COLORS.danger} style={{ marginRight: 4 }} />
+                <Text style={styles.detailsRejectBtnText}>Decline</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Profile Header */}
         <View style={styles.profileCard}>
           <ProfileAvatar
@@ -368,5 +420,56 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textSecondary,
     fontStyle: 'italic',
+  },
+  pendingDetailsBanner: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1.2,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+  },
+  pendingDetailsTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  pendingDetailsSub: {
+    fontSize: 12,
+    color: '#92400E',
+    lineHeight: 16,
+  },
+  detailsApproveBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#16A34A',
+    paddingVertical: 9,
+    borderRadius: 12,
+    shadowColor: '#16A34A',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  detailsApproveBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  detailsRejectBtn: {
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderRadius: 12,
+  },
+  detailsRejectBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.danger,
   },
 });

@@ -228,8 +228,23 @@ export default function LoginScreen() {
               </View>
 
               {errorMsg ? (
-                <View style={styles.errorBanner}>
-                  <Text style={styles.errorBannerText}>{errorMsg}</Text>
+                <View
+                  style={[
+                    styles.errorBanner,
+                    errorMsg.includes('approval') && {
+                      backgroundColor: 'rgba(254, 243, 199, 0.95)',
+                      borderColor: '#FDE68A',
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.errorBannerText,
+                      errorMsg.includes('approval') && { color: '#B45309' },
+                    ]}
+                  >
+                    {errorMsg}
+                  </Text>
                 </View>
               ) : null}
 

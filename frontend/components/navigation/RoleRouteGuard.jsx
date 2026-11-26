@@ -34,6 +34,11 @@ export default function RoleRouteGuard({ allowedRole, children }) {
     return <Redirect href="/(auth)/login" />;
   }
 
+  // Account pending warden approval
+  if (currentUser.status === 'pending_approval') {
+    return <Redirect href="/(auth)/login" />;
+  }
+
   // Authenticated but wrong role -> redirect to their authorized section home
   if (currentUser.role !== allowedRole) {
     const targetRoute = ROLE_HOME_MAP[currentUser.role] || '/(auth)/login';

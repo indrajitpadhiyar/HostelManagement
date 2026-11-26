@@ -27,10 +27,19 @@ import { UserPlus } from 'lucide-react-native';
 
 export default function WardenStudents() {
   const router = useRouter();
-  const { students, rooms, addStudent, deleteStudent, allocateRoom } = useApp();
+  const {
+    students,
+    rooms,
+    addStudent,
+    deleteStudent,
+    allocateRoom,
+    approveStudentRegistration,
+    rejectStudentRegistration,
+  } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [deptFilter, setDeptFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL'); // ALL | PENDING | APPROVED
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -56,6 +65,15 @@ export default function WardenStudents() {
   // Reallocate state
   const [selectedNewRoom, setSelectedNewRoom] = useState('A-204');
 
+  const pendingCount = students.filter((s) => s.approvalStatus === 'PENDING').length;
+  const approvedCount = students.filter((s) => s.approvalStatus !== 'PENDING').length;
+
+  const statusOptions = [
+    { label: `All (${students.length})`, value: 'ALL' },
+    { label: `Pending Approvals (${pendingCount})`, value: 'PENDING' },
+    { label: `Approved (${approvedCount})`, value: 'APPROVED' },
+  ];
+
   const deptOptions = [
     { label: 'All Departments', value: 'ALL', count: students.length },
     { label: 'CSE', value: 'CSE', count: students.filter((s) => s.deptCode === 'CSE').length },
@@ -75,9 +93,35 @@ export default function WardenStudents() {
         s.roomNo.toLowerCase().includes(q);
 
       const matchesDept = deptFilter === 'ALL' || s.deptCode === deptFilter;
-      return matchesSearch && matchesDept;
+      const isPending = s.approvalStatus === 'PENDING';
+      const matchesStatus =
+        statusFilter === 'ALL' ||
+        (statusFilter === 'PENDING' && isPending) ||
+        (statusFilter === 'APPROVED' && !isPending);
+
+      return matchesSearch && matchesDept && matchesStatus;
     });
-  }, [students, searchQuery, deptFilter]);
+  }, [students, searchQuery, deptFilter, statusFilter]);
+
+  const handleApprove = async (stu) => {
+    try {
+      await approveStudentRegistration(stu.id);
+      setSuccessMsg(`Registration for ${stu.name} has been approved! The student can now access the student portal.`);
+      setShowSuccessModal(true);
+    } catch (e) {
+      Alert.alert('Approval Error', e.message || 'Failed to approve student registration.');
+    }
+  };
+
+  const handleReject = async (stu) => {
+    try {
+      await rejectStudentRegistration(stu.id);
+      setSuccessMsg(`Registration request for ${stu.name} was declined.`);
+      setShowSuccessModal(true);
+    } catch (e) {
+      Alert.alert('Decline Error', e.message || 'Failed to decline student registration.');
+    }
+  };
 
   const handleOpenAdd = () => {
     const randomRoll = `EN2024${Math.floor(100 + Math.random() * 900)}`;
@@ -174,6 +218,13 @@ export default function WardenStudents() {
       </View>
 
       <FilterChips
+        options={statusOptions}
+        selected={statusFilter}
+        onSelect={setStatusFilter}
+        style={{ marginBottom: 4 }}
+      />
+
+      <FilterChips
         options={deptOptions}
         selected={deptFilter}
         onSelect={setDeptFilter}
@@ -192,6 +243,8 @@ export default function WardenStudents() {
               student={stu}
               showActions={true}
               onAllocateRoom={() => handleOpenAllocate(stu)}
+              onApprove={() => handleApprove(stu)}
+              onReject={() => handleReject(stu)}
               onPress={() =>
                 router.push({
                   pathname: '/(warden)/student-details',

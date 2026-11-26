@@ -34,7 +34,9 @@ import {
 
 export default function WardenDashboard() {
   const router = useRouter();
-  const { stats, leaveRequests, activities, currentUser } = useApp();
+  const { stats, leaveRequests, activities, currentUser, students } = useApp();
+
+  const pendingStudents = (students || []).filter((s) => s.approvalStatus === 'PENDING');
 
   const pendingWardenReview = leaveRequests.filter(
     (r) => r.status === LEAVE_STATUS.PARENT_APPROVED
@@ -90,6 +92,35 @@ export default function WardenDashboard() {
                 </Text>
               </View>
               <ArrowRight size={18} color="#FFFFFF" />
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {/* Pending Student Registrations Approval Banner */}
+        {pendingStudents.length > 0 && (
+          <TouchableOpacity
+            style={styles.pendingStudentsCard}
+            onPress={() => router.push('/(warden)/students')}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={['#FFFBEB', '#FEF3C7']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.pendingStudentsInner}
+            >
+              <View style={styles.pendingBadgeIconCircle}>
+                <Users size={18} color="#D97706" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.pendingCardTitle}>
+                  {pendingStudents.length} Student Registration{pendingStudents.length > 1 ? 's' : ''} Awaiting Approval
+                </Text>
+                <Text style={styles.pendingCardSub}>
+                  Tap to review & accept student access to the portal
+                </Text>
+              </View>
+              <ArrowRight size={16} color="#D97706" />
             </LinearGradient>
           </TouchableOpacity>
         )}
@@ -426,6 +457,41 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: '#FEE2E2',
     marginTop: 1,
+  },
+  pendingStudentsCard: {
+    borderRadius: 16,
+    marginBottom: 14,
+    shadowColor: '#D97706',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  pendingStudentsInner: {
+    borderRadius: 16,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.2,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+  },
+  pendingBadgeIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pendingCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  pendingCardSub: {
+    fontSize: 11,
+    color: '#92400E',
+    marginTop: 2,
   },
   rollCallCard: {
     marginHorizontal: 0,

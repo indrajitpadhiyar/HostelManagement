@@ -5,6 +5,8 @@ import {
   createStudent,
   reallocateRoom,
   deleteStudent,
+  approveStudent,
+  rejectStudent,
 } from '../controllers/student.controller.js';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
 import { ROLES } from '../config/constants.js';
@@ -24,5 +26,7 @@ router
   .delete(authorize(ROLES.WARDEN), deleteStudent);
 
 router.post('/:id/reallocate', authorize(ROLES.WARDEN), reallocateRoom);
+router.post('/:id/approve', authorize(ROLES.WARDEN), approveStudent);
+router.post('/:id/reject', authorize(ROLES.WARDEN), rejectStudent);
 
 export default router;

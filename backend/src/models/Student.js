@@ -74,6 +74,20 @@ const studentSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    approvalStatus: {
+      type: String,
+      enum: ['PENDING', 'APPROVED', 'REJECTED'],
+      default: 'PENDING',
+      index: true,
+    },
+    approvedBy: {
+      type: String,
+      default: null,
+    },
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
     academicHistory: [
       {
         year: String,

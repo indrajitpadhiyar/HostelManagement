@@ -36,6 +36,7 @@ const buildUserProfile = async (user) => {
       profile.parentName = student.parentName;
       profile.parentMobile = student.parentMobile;
       profile.parentEmail = student.parentEmail;
+      profile.approvalStatus = student.approvalStatus || 'APPROVED';
     }
   } else if (user.role === ROLES.PARENT) {
     // Find linked child
@@ -111,6 +112,9 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   if (user.status !== 'active') {
+    if (user.status === 'pending_approval') {
+      throw ApiError.forbidden('Your registration is awaiting Warden approval. Please wait for the Warden to accept your request.');
+    }
     throw ApiError.forbidden('Your account is currently suspended. Please contact the warden.');
   }
 
@@ -190,7 +194,7 @@ export const register = asyncHandler(async (req, res) => {
     password,
     role,
     mobile: (mobile || '').trim(),
-    status: 'active',
+    status: role === ROLES.STUDENT ? 'pending_approval' : 'active',
   });
 
   // Specialized role persistence in MongoDB
@@ -240,15 +244,17 @@ export const register = asyncHandler(async (req, res) => {
       parentEmail: (parentEmail || '').toLowerCase().trim(),
       parentMobile: (parentMobile || '').trim(),
       parentUserId: linkedParentUser ? linkedParentUser._id : null,
+      approvalStatus: 'PENDING',
     });
 
-    // Create real Warden Notification in MongoDB for real student registration event
+    // Create real Warden Notification in MongoDB for real student registration request
     await Notification.create({
       userId: null,
       role: ROLES.WARDEN,
-      title: 'New Student Registration',
-      message: `${user.name} (${cleanEnrollment}) registered on the portal. Room: ${studentRecord.roomNo}.`,
+      title: 'New Student Registration Request',
+      message: `${user.name} (${cleanEnrollment}) has registered and is awaiting your approval to access the student portal.`,
       type: NOTIFICATION_TYPES.SYSTEM,
+      requestId: studentRecord._id.toString(),
       time: 'Just now',
     });
 
@@ -257,11 +263,11 @@ export const register = asyncHandler(async (req, res) => {
       studentName: user.name,
       enrollmentNo: cleanEnrollment,
       roomNo: studentRecord.roomNo,
-      type: 'ROOM_REALLOCATED',
-      title: 'Student Registration',
-      description: `${user.name} registered on the hostel system.`,
-      badgeType: 'info',
-      status: 'INFO',
+      type: 'REGISTRATION_PENDING',
+      title: 'Student Registration Pending',
+      description: `${user.name} registered. Awaiting Warden approval.`,
+      badgeType: 'warning',
+      status: 'PENDING',
     });
   } else if (role === ROLES.PARENT) {
     // If student enrollment or email was provided, link to Student
@@ -292,6 +298,24 @@ export const register = asyncHandler(async (req, res) => {
       office: 'Admin Wing, Ground Floor',
     };
     await user.save({ validateBeforeSave: false });
+  }
+
+  if (role === ROLES.STUDENT) {
+    return res.status(201).json(
+      ApiResponse.created(
+        {
+          pendingApproval: true,
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+          },
+        },
+        'Registration submitted successfully! Your account is pending Warden approval. You can access the student section once the Warden accepts your request.'
+      )
+    );
   }
 
   const token = generateToken({ id: user._id, role: user.role });

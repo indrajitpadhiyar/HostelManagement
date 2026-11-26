@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../constants/colors';
 import ProfileAvatar from '../common/ProfileAvatar';
 import StatusBadge from '../common/StatusBadge';
-import { ChevronRight, Phone, Home } from 'lucide-react-native';
+import { ChevronRight, Phone, Home, Check, X, Sparkles, Clock } from 'lucide-react-native';
 
 export default function StudentCard({
   student,
@@ -12,8 +12,11 @@ export default function StudentCard({
   showActions = false,
   onCall,
   onAllocateRoom,
+  onApprove,
+  onReject,
   style,
 }) {
+  const isPending = student.approvalStatus === 'PENDING';
   return (
     <TouchableOpacity
       style={[styles.outerCard, style]}
@@ -53,14 +56,53 @@ export default function StudentCard({
           </View>
 
           <View style={styles.rightColumn}>
-            <StatusBadge
-              status={student.hostelStatus}
-              isHostelStatus={true}
-              size="small"
-            />
+            {isPending ? (
+              <View style={styles.pendingBadge}>
+                <Clock size={11} color="#D97706" style={{ marginRight: 3 }} />
+                <Text style={styles.pendingBadgeLabel}>Pending</Text>
+              </View>
+            ) : (
+              <StatusBadge
+                status={student.hostelStatus}
+                isHostelStatus={true}
+                size="small"
+              />
+            )}
             <ChevronRight size={18} color={COLORS.textMuted} style={styles.chevron} />
           </View>
         </View>
+
+        {isPending && onApprove && (
+          <View style={styles.approvalBanner}>
+            <View style={styles.approvalPromptRow}>
+              <Sparkles size={13} color="#D97706" style={{ marginRight: 5 }} />
+              <Text style={styles.approvalPromptText}>
+                Registration Request Awaiting Warden Approval
+              </Text>
+            </View>
+            <View style={styles.approvalButtonsRow}>
+              <TouchableOpacity
+                style={styles.approveBtn}
+                onPress={() => onApprove(student)}
+                activeOpacity={0.8}
+              >
+                <Check size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <Text style={styles.approveBtnText}>Accept Request</Text>
+              </TouchableOpacity>
+
+              {onReject && (
+                <TouchableOpacity
+                  style={styles.rejectBtn}
+                  onPress={() => onReject(student)}
+                  activeOpacity={0.8}
+                >
+                  <X size={14} color={COLORS.danger} style={{ marginRight: 3 }} />
+                  <Text style={styles.rejectBtnText}>Decline</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
 
         {showActions && (
           <View style={styles.actionsFooter}>
@@ -203,5 +245,77 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: COLORS.primary,
+  },
+  pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+  },
+  pendingBadgeLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  approvalBanner: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(245, 158, 11, 0.2)',
+    backgroundColor: 'rgba(254, 243, 199, 0.35)',
+    borderRadius: 12,
+    padding: 10,
+  },
+  approvalPromptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  approvalPromptText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#B45309',
+    flex: 1,
+  },
+  approvalButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  approveBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#16A34A',
+    paddingVertical: 7,
+    borderRadius: 10,
+    shadowColor: '#16A34A',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  approveBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  rejectBtn: {
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderRadius: 10,
+  },
+  rejectBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.danger,
   },
 });

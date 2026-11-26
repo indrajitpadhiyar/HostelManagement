@@ -3,9 +3,11 @@ import User from '../models/User.js';
 import Room from '../models/Room.js';
 import LeaveRequest from '../models/LeaveRequest.js';
 import Activity from '../models/Activity.js';
+import Notification from '../models/Notification.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import ApiError from '../utils/apiError.js';
 import ApiResponse from '../utils/apiResponse.js';
+import { ROLES, NOTIFICATION_TYPES } from '../config/constants.js';
 
 /**
  * @desc    Get All Students with Search, Filtering & Pagination
@@ -66,6 +68,10 @@ export const getStudents = asyncHandler(async (req, res) => {
     parentName: s.parentName,
     parentEmail: s.parentEmail,
     parentMobile: s.parentMobile,
+    approvalStatus: s.approvalStatus || (s.userId?.status === 'pending_approval' ? 'PENDING' : 'APPROVED'),
+    approvedBy: s.approvedBy,
+    approvedAt: s.approvedAt,
+    userStatus: s.userId?.status || 'active',
     academicHistory: s.academicHistory || [],
   }));
 
@@ -285,4 +291,87 @@ export const deleteStudent = asyncHandler(async (req, res) => {
   await Student.findByIdAndDelete(student._id);
 
   res.status(200).json(ApiResponse.success(null, 'Student record removed and bed vacated'));
+});
+
+/**
+ * @desc    Approve / Accept Student Registration Request
+ * @route   POST /api/v1/students/:id/approve
+ * @access  Private (Warden)
+ */
+export const approveStudent = asyncHandler(async (req, res) => {
+  const student = await Student.findById(req.params.id).populate('userId');
+  if (!student) {
+    throw ApiError.notFound('Student record not found.');
+  }
+
+  student.approvalStatus = 'APPROVED';
+  student.approvedBy = req.user?.name || 'Warden';
+  student.approvedAt = new Date();
+  await student.save();
+
+  if (student.userId) {
+    await User.findByIdAndUpdate(student.userId._id || student.userId, {
+      status: 'active',
+    });
+  }
+
+  // Create notification for student in MongoDB
+  await Notification.create({
+    userId: student.userId?._id || student.userId,
+    role: ROLES.STUDENT,
+    title: 'Registration Approved! 🎉',
+    message: 'The Warden has accepted your registration request. You now have full access to the student portal.',
+    type: NOTIFICATION_TYPES.SYSTEM,
+    time: 'Just now',
+  }).catch(() => {});
+
+  // Create real Activity log in MongoDB
+  await Activity.create({
+    studentName: student.userId?.name || 'Student',
+    enrollmentNo: student.enrollmentNo,
+    roomNo: student.roomNo,
+    type: 'STUDENT_APPROVED',
+    title: 'Student Registration Accepted',
+    description: `${student.userId?.name || 'Student'} (${student.enrollmentNo}) registration was accepted by Warden.`,
+    badgeType: 'success',
+    status: 'ACTIVE',
+  }).catch(() => {});
+
+  res.status(200).json(ApiResponse.success(student, 'Student registration accepted successfully'));
+});
+
+/**
+ * @desc    Reject Student Registration Request
+ * @route   POST /api/v1/students/:id/reject
+ * @access  Private (Warden)
+ */
+export const rejectStudent = asyncHandler(async (req, res) => {
+  const { reason } = req.body || {};
+  const student = await Student.findById(req.params.id).populate('userId');
+  if (!student) {
+    throw ApiError.notFound('Student record not found.');
+  }
+
+  student.approvalStatus = 'REJECTED';
+  student.approvedBy = req.user?.name || 'Warden';
+  student.approvedAt = new Date();
+  await student.save();
+
+  if (student.userId) {
+    await User.findByIdAndUpdate(student.userId._id || student.userId, {
+      status: 'inactive',
+    });
+  }
+
+  // Create notification for student in MongoDB
+  await Notification.create({
+    userId: student.userId?._id || student.userId,
+    role: ROLES.STUDENT,
+    title: 'Registration Declined',
+    message: reason ? `Your registration request was declined: ${reason}` : 'Your registration request was declined by the Warden.',
+    type: NOTIFICATION_TYPES.SYSTEM,
+    time: 'Just now',
+  }).catch(() => {});
+
+  res.status(200).json(ApiResponse.success(student, 'Student registration rejected'));
 });

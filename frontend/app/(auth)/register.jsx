@@ -16,6 +16,7 @@ import { ROLES } from '../../constants/config';
 import { useApp } from '../../hooks/useApp';
 import CustomInput from '../../components/forms/CustomInput';
 import PrimaryButton from '../../components/common/PrimaryButton';
+import SuccessModal from '../../components/modals/SuccessModal';
 import {
   Building2,
   Mail,
@@ -100,6 +101,8 @@ export default function RegisterScreen() {
   const [agreeTerms, setAgreeTerms] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showPendingModal, setShowPendingModal] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState('');
 
   const currentRoleCfg = ROLE_OPTIONS.find((r) => r.id === selectedRole) || ROLE_OPTIONS[0];
 
@@ -149,6 +152,15 @@ export default function RegisterScreen() {
       gateNumber: gateNumber.trim() || 'Main Gate 1',
     });
     setLoading(false);
+
+    if (res?.pendingApproval) {
+      setPendingMessage(
+        res.message ||
+        'Your registration request has been submitted to the Warden for approval. Once accepted by the Warden, you will be able to sign in and access the student portal.'
+      );
+      setShowPendingModal(true);
+      return;
+    }
 
     if (!res.success) {
       setErrorMsg(res.message);
@@ -425,6 +437,17 @@ export default function RegisterScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <SuccessModal
+        visible={showPendingModal}
+        title="Registration Submitted! 📋"
+        message={pendingMessage}
+        buttonText="Go to Sign In"
+        onClose={() => {
+          setShowPendingModal(false);
+          router.replace('/(auth)/login');
+        }}
+      />
     </SafeAreaView>
   );
 }
