@@ -18,6 +18,7 @@ import AppHeader from '../../components/common/AppHeader';
 import ProfileAvatar from '../../components/common/ProfileAvatar';
 import FilterChips from '../../components/common/FilterChips';
 import SuccessModal from '../../components/modals/SuccessModal';
+import EmptyState from '../../components/common/EmptyState';
 import RoleTabBar from '../../components/navigation/RoleTabBar';
 import {
   Calendar,
@@ -41,7 +42,7 @@ export default function WardenAttendanceScreen() {
   const { students, leaveRequests, saveBatchRollCall } = useApp();
 
   const [selectedSession, setSelectedSession] = useState('NIGHT_ROLL_CALL'); // NIGHT_ROLL_CALL | MORNING | DINNER
-  const [selectedDate, setSelectedDate] = useState('2026-11-24');
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -336,7 +337,8 @@ export default function WardenAttendanceScreen() {
 
         {/* Student Roll-Call List */}
         <View style={styles.studentsList}>
-          {filteredStudents.map((student) => {
+          {filteredStudents.length > 0 ? (
+            filteredStudents.map((student) => {
             const entry = rollCall[student.id] || { status: 'PRESENT', remarks: '' };
             const isPresent = entry.status === 'PRESENT';
             const isOnLeave = entry.status === 'ON_LEAVE';
@@ -475,7 +477,13 @@ export default function WardenAttendanceScreen() {
                 </LinearGradient>
               </View>
             );
-          })}
+          })
+          ) : (
+            <EmptyState
+              title="No Students Found"
+              description={students.length === 0 ? "No registered students in the hostel database." : "No students matching your search/filter."}
+            />
+          )}
         </View>
 
         <View style={{ height: 100 }} />

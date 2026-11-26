@@ -14,6 +14,7 @@ import { LEAVE_STATUS } from '../../constants/config';
 import AppHeader from '../../components/common/AppHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import ActivityTimeline from '../../components/cards/ActivityTimeline';
+import EmptyState from '../../components/common/EmptyState';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import {
   Calendar,
@@ -32,9 +33,26 @@ export default function StudentLeaveDetails() {
   const { id } = useLocalSearchParams();
   const { leaveRequests } = useApp();
 
-  const request = leaveRequests.find((r) => r.id === id) || leaveRequests[0];
+  const request = leaveRequests.find((r) => r.id === id || r._id === id);
 
-  if (!request) return null;
+  if (!request) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <AppHeader
+          title="Leave Pass Details"
+          subtitle="Not Found"
+          showBack={true}
+          onBack={() => router.replace('/(student)/leave-history')}
+        />
+        <View style={{ flex: 1, padding: 20 }}>
+          <EmptyState
+            title="Leave Pass Not Found"
+            description="The requested leave pass could not be found in your history."
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const canExtend =
     request.status === LEAVE_STATUS.CHECKED_OUT ||

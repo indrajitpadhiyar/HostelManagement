@@ -33,16 +33,16 @@ export default function StudentDashboard() {
   const { currentUser, students, leaveRequests, notifications, attendance } = useApp();
 
   const student =
-    students.find((s) => s.id === currentUser?.id) ||
-    students[0] || {
-      id: 'STU001',
-      name: 'Aarav Sharma',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-      enrollmentNo: 'EN2022001',
-      roomNo: 'A-204',
-      hostelStatus: HOSTEL_STATUS.PRESENT,
-      semester: '6th Semester',
-      deptCode: 'CSE',
+    students.find((s) => s.id === currentUser?.id || s.id === currentUser?.studentId) ||
+    currentUser || {
+      id: currentUser?.id || '',
+      name: currentUser?.name || 'Student',
+      avatar: currentUser?.avatar,
+      enrollmentNo: currentUser?.enrollmentNo || '',
+      roomNo: currentUser?.roomNo || 'Unassigned',
+      hostelStatus: currentUser?.hostelStatus || HOSTEL_STATUS.PRESENT,
+      semester: currentUser?.semester || '',
+      deptCode: currentUser?.department || 'ENG',
     };
   const myLeaves = (leaveRequests || []).filter((r) => r.studentId === student?.id);
 

@@ -16,8 +16,11 @@ export default function LeaveHistory() {
   const router = useRouter();
   const { currentUser, students, leaveRequests } = useApp();
 
-  const student = students.find((s) => s.id === currentUser?.id) || students[0];
-  const myLeaves = leaveRequests.filter((r) => r.studentId === student.id);
+  const student =
+    students.find((s) => s.id === currentUser?.id || s.id === currentUser?.studentId) ||
+    currentUser ||
+    {};
+  const myLeaves = leaveRequests.filter((r) => r.studentId === student.id || r.studentId === student.studentId);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');

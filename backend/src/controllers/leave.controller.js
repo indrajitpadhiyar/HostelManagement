@@ -23,9 +23,17 @@ export const getLeaves = asyncHandler(async (req, res) => {
     query.userId = user._id;
   } else if (user.role === ROLES.PARENT) {
     // Leaves for parent's linked student
-    const child = await Student.findOne({ parentEmail: user.email });
+    const child = await Student.findOne({
+      $or: [
+        { parentUserId: user._id },
+        { parentEmail: user.email },
+        ...(user.mobile ? [{ parentMobile: user.mobile }] : []),
+      ],
+    });
     if (child) {
       query.studentId = child._id;
+    } else {
+      query.studentId = null; // No linked child, return empty list
     }
   }
 

@@ -13,6 +13,7 @@ import { LEAVE_STATUS } from '../../constants/config';
 import AppHeader from '../../components/common/AppHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import ActivityTimeline from '../../components/cards/ActivityTimeline';
+import EmptyState from '../../components/common/EmptyState';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import SecondaryButton from '../../components/common/SecondaryButton';
 import ConfirmationModal from '../../components/modals/ConfirmationModal';
@@ -31,14 +32,31 @@ export default function ParentLeaveDetails() {
   const { id } = useLocalSearchParams();
   const { leaveRequests, parentApproveLeave, parentRejectLeave } = useApp();
 
-  const request = leaveRequests.find((r) => r.id === id) || leaveRequests[0];
+  const request = leaveRequests.find((r) => r.id === id || r._id === id);
 
   const [modalAction, setModalAction] = useState(null); // 'approve' | 'reject'
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
-  if (!request) return null;
+  if (!request) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <AppHeader
+          title="Leave Pass Details"
+          subtitle="Not Found"
+          showBack={true}
+          onBack={() => router.replace('/(parent)/approvals')}
+        />
+        <View style={{ flex: 1, padding: 20 }}>
+          <EmptyState
+            title="Leave Application Not Found"
+            description="The requested leave pass does not exist or has been removed."
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const isPendingApproval = request.status === LEAVE_STATUS.PENDING_PARENT_APPROVAL;
 

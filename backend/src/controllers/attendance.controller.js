@@ -20,6 +20,18 @@ export const getStudentAttendance = asyncHandler(async (req, res) => {
       throw new ApiError(404, 'Student profile not found for this user');
     }
     targetStudentId = studentProfile._id;
+  } else if (req.user.role === ROLES.PARENT && !targetStudentId) {
+    const child = await Student.findOne({
+      $or: [
+        { parentUserId: req.user._id },
+        { parentEmail: req.user.email },
+        ...(req.user.mobile ? [{ parentMobile: req.user.mobile }] : []),
+      ],
+    });
+    if (!child) {
+      throw new ApiError(404, 'No linked student record found for this parent');
+    }
+    targetStudentId = child._id;
   } else if (!targetStudentId) {
     // If not provided, fetch default or return 400
     throw new ApiError(400, 'Student ID is required');

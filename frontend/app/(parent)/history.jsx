@@ -16,8 +16,13 @@ export default function ParentHistory() {
   const router = useRouter();
   const { currentUser, students, leaveRequests } = useApp();
 
-  const child = students.find((s) => s.id === currentUser?.studentId) || students[0];
-  const childLeaves = leaveRequests.filter((r) => r.studentId === child.id);
+  const child =
+    students.find((s) => s.id === currentUser?.studentId || s._id === currentUser?.studentId) ||
+    currentUser?.child ||
+    null;
+  const childLeaves = child
+    ? leaveRequests.filter((r) => r.studentId === child.id || r.studentId === child._id)
+    : leaveRequests;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -70,7 +75,7 @@ export default function ParentHistory() {
     <SafeAreaView style={styles.safeArea}>
       <AppHeader
         title="Leave Pass Records"
-        subtitle={`History for ${child.name}`}
+        subtitle={child ? `History for ${child.name}` : 'Leave History'}
         showBack={true}
         onBack={() => router.back()}
       />

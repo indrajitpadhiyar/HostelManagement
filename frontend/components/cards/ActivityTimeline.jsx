@@ -60,7 +60,7 @@ export default function ActivityTimeline({ request }) {
     {
       title: 'Gate Exit (Departure)',
       description: request.actualExitTime
-        ? `Checked out through gate. Recorded by ${request.guardExitRecordedBy || 'Guard Balwant Singh'}`
+        ? `Checked out through gate. Recorded by ${request.guardExitRecordedBy || 'Gate Security'}`
         : 'Awaiting student arrival at campus gate',
       time: request.actualExitTime,
       completed: !!request.actualExitTime,

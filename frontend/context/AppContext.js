@@ -1,16 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { router } from 'expo-router';
+import apiClient from '../services/apiClient';
 import MockDataService from '../services/mockDataService';
 import { ROLES, LEAVE_STATUS, HOSTEL_STATUS } from '../constants/config';
-import { INITIAL_STUDENTS } from '../data/students';
-import { INITIAL_ROOMS } from '../data/rooms';
-import { INITIAL_LEAVE_REQUESTS } from '../data/leaveRequests';
-import { INITIAL_ACTIVITIES } from '../data/activities';
-import { INITIAL_NOTIFICATIONS } from '../data/notifications';
-import { INITIAL_GUARDS } from '../data/guards';
-import { INITIAL_PARENTS } from '../data/parents';
-import { INITIAL_WARDENS } from '../data/wardens';
-import { INITIAL_ATTENDANCE } from '../data/attendance';
 
 const AppContext = createContext(null);
 
@@ -18,34 +10,171 @@ export function AppProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Core reactive entities (initialized with default seed data for instant SSR & hydration safety)
-  const [students, setStudents] = useState(INITIAL_STUDENTS);
-  const [rooms, setRooms] = useState(INITIAL_ROOMS);
-  const [leaveRequests, setLeaveRequests] = useState(INITIAL_LEAVE_REQUESTS);
-  const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
-  const [guards, setGuards] = useState(INITIAL_GUARDS);
-  const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE);
-  const [parents] = useState(INITIAL_PARENTS);
-  const [wardens] = useState(INITIAL_WARDENS);
+  // Core reactive entities (initialized with clean empty arrays - NO dummy/fake records)
+  const [students, setStudents] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [guards, setGuards] = useState([]);
+  const [attendance, setAttendance] = useState({
+    date: new Date().toISOString().split('T')[0],
+    records: [],
+    stats: { totalDays: 0, presentDays: 0, absentDays: 0, leaveDays: 0, attendanceRate: 100 },
+    today: null,
+  });
+  const [parents, setParents] = useState([]);
+  const [wardens, setWardens] = useState([]);
 
-  // Initialize and load saved state from AsyncStorage
+  // Normalization helpers for MongoDB document schemas
+  const normalizeLeave = (l) => ({
+    ...l,
+    id: l.leaveId || l.id || l._id?.toString(),
+    _id: l._id?.toString() || l.id,
+    studentId: l.studentId?._id ? l.studentId._id.toString() : (l.studentId?.toString() || l.studentId),
+    studentName: l.studentName || l.studentId?.name || 'Student',
+    enrollmentNo: l.enrollmentNo || l.studentId?.enrollmentNo || '',
+    roomNo: l.roomNo || l.studentId?.roomNo || '',
+    department: l.department || l.studentId?.department || 'Engineering',
+    status: l.status || LEAVE_STATUS.PENDING_PARENT_APPROVAL,
+    extensionHistory: l.extensionHistory || [],
+  });
+
+  const normalizeStudent = (s) => ({
+    ...s,
+    id: s.id || s._id?.toString(),
+    _id: s._id?.toString() || s.id,
+    name: s.name || s.userId?.name || 'Student',
+    enrollmentNo: s.enrollmentNo || '',
+    roomNo: s.roomNo || 'Unassigned',
+    block: s.block || 'Block A',
+    department: s.department || 'Engineering',
+    deptCode: s.deptCode || 'ENG',
+    semester: s.semester || '1st Semester',
+    email: s.email || s.userId?.email || '',
+    mobile: s.mobile || s.phone || s.userId?.mobile || '',
+    hostelStatus: s.hostelStatus || HOSTEL_STATUS.PRESENT,
+    avatar: s.avatar || s.userId?.avatar,
+    academicHistory: s.academicHistory || [],
+  });
+
+  const normalizeRoom = (r) => ({
+    ...r,
+    id: r.id || r._id?.toString(),
+    roomNo: r.roomNo,
+    block: r.block || 'Block A',
+    floor: r.floor || '1st Floor',
+    type: r.type || 'Standard Room',
+    capacity: r.capacity || 2,
+    occupied: r.occupied !== undefined ? r.occupied : (r.studentIds?.length || 0),
+    available: r.available !== undefined ? r.available : Math.max(0, (r.capacity || 2) - (r.studentIds?.length || 0)),
+    studentIds: (r.studentIds || []).map((s) => (typeof s === 'object' && s?._id ? s._id.toString() : s.toString())),
+  });
+
+  const normalizeNotif = (n) => ({
+    ...n,
+    id: n.id || n._id?.toString(),
+    title: n.title,
+    message: n.message,
+    role: n.role,
+    read: Boolean(n.read),
+    time: n.time || n.timestamp || 'Just now',
+    type: n.type || 'info',
+  });
+
+  // Fetch real data from MongoDB backend
+  const fetchBackendData = useCallback(async (user) => {
+    if (!user) return;
+
+    try {
+      // 1. Fetch real leaves & notifications for all authenticated users
+      const [leavesRes, notifsRes] = await Promise.all([
+        apiClient.getLeaves().catch((e) => {
+          console.warn('[Data Fetch] Leaves API warning:', e.message);
+          return null;
+        }),
+        apiClient.getNotifications().catch((e) => {
+          console.warn('[Data Fetch] Notifications API warning:', e.message);
+          return null;
+        }),
+      ]);
+
+      if (leavesRes?.leaves) {
+        setLeaveRequests(leavesRes.leaves.map(normalizeLeave));
+      } else if (Array.isArray(leavesRes)) {
+        setLeaveRequests(leavesRes.map(normalizeLeave));
+      }
+
+      if (notifsRes?.notifications) {
+        setNotifications(notifsRes.notifications.map(normalizeNotif));
+      } else if (Array.isArray(notifsRes)) {
+        setNotifications(notifsRes.map(normalizeNotif));
+      }
+
+      // 2. Fetch Warden & Guard administrative data
+      if (user.role === ROLES.WARDEN || user.role === ROLES.GUARD) {
+        const [studentsRes, roomsRes, attOverviewRes, guardDashRes] = await Promise.all([
+          apiClient.getStudents().catch((e) => {
+            console.warn('[Data Fetch] Students API warning:', e.message);
+            return null;
+          }),
+          apiClient.getRooms().catch((e) => {
+            console.warn('[Data Fetch] Rooms API warning:', e.message);
+            return null;
+          }),
+          apiClient.getAttendanceOverview().catch((e) => {
+            console.warn('[Data Fetch] Attendance Overview API warning:', e.message);
+            return null;
+          }),
+          user.role === ROLES.GUARD
+            ? apiClient.getGuardDashboard().catch(() => null)
+            : Promise.resolve(null),
+        ]);
+
+        if (Array.isArray(studentsRes)) {
+          setStudents(studentsRes.map(normalizeStudent));
+        } else if (studentsRes?.students) {
+          setStudents(studentsRes.students.map(normalizeStudent));
+        }
+
+        if (Array.isArray(roomsRes)) {
+          setRooms(roomsRes.map(normalizeRoom));
+        } else if (roomsRes?.rooms) {
+          setRooms(roomsRes.rooms.map(normalizeRoom));
+        }
+
+        if (attOverviewRes?.overview) {
+          setAttendance(attOverviewRes.overview);
+        } else if (attOverviewRes) {
+          setAttendance((prev) => ({ ...prev, ...attOverviewRes }));
+        }
+
+        if (guardDashRes?.recentMovements) {
+          setActivities(guardDashRes.recentMovements);
+        }
+      }
+
+      // 3. Fetch Student & Parent attendance records
+      if (user.role === ROLES.STUDENT || user.role === ROLES.PARENT) {
+        const studentId = user.studentId || user.id;
+        const studentAtt = await apiClient.getStudentAttendance(studentId).catch(() => null);
+        if (studentAtt) {
+          setAttendance(studentAtt);
+        }
+      }
+    } catch (err) {
+      console.warn('Backend sync encountered an issue:', err.message);
+    }
+  }, []);
+
+  // Initialize and load saved session from local storage, then verify with backend
   useEffect(() => {
     async function init() {
       try {
         const storedUser = await MockDataService.getStoredSession();
         if (storedUser) {
           setCurrentUser(storedUser);
-        }
-        const data = await MockDataService.loadInitialData();
-        setStudents(data.students);
-        setRooms(data.rooms);
-        setLeaveRequests(data.leaveRequests);
-        setActivities(data.activities);
-        setNotifications(data.notifications);
-        setGuards(data.guards);
-        if (data.attendance) {
-          setAttendance(data.attendance);
+          await fetchBackendData(storedUser);
         }
       } catch (err) {
         console.error('Failed to init app state:', err);
@@ -54,1043 +183,365 @@ export function AppProvider({ children }) {
       }
     }
     init();
-  }, []);
+  }, [fetchBackendData]);
 
-  // Save changes to storage whenever major datasets mutate
-  useEffect(() => {
-    if (!isLoading && students.length > 0) {
-      MockDataService.persistData({
-        students,
-        rooms,
-        leaveRequests,
-        activities,
-        notifications,
-        guards,
-        attendance,
-      });
-    }
-  }, [students, rooms, leaveRequests, activities, notifications, guards, attendance, isLoading]);
-
-  // Auth Functions with Multi-Role Detection (Student, Parent, Warden, Guard)
+  // Real Authentication via Backend API & MongoDB
   const login = async (identifier, password, requestedRole) => {
     const raw = (identifier || '').trim();
-    const trimmed = raw.toLowerCase();
-    const cleanNum = raw.replace(/\D/g, '');
+    if (!raw) {
+      return { success: false, message: 'Please enter your login email, roll number, or ID.' };
+    }
+    if (!password) {
+      return { success: false, message: 'Please enter your account password.' };
+    }
 
-    // 1. Check Student Role
-    if (
-      requestedRole === ROLES.STUDENT ||
-      trimmed === 'student' ||
-      trimmed.includes('student@') ||
-      trimmed.startsWith('en') ||
-      trimmed.startsWith('stu') ||
-      students.some(
-        (s) =>
-          s.email.toLowerCase() === trimmed ||
-          s.enrollmentNo.toLowerCase() === trimmed ||
-          s.id.toLowerCase() === trimmed ||
-          (cleanNum.length >= 6 && s.mobile.replace(/\D/g, '').includes(cleanNum))
-      )
-    ) {
-      const matchedStudent =
-        students.find(
-          (s) =>
-            s.email.toLowerCase() === trimmed ||
-            s.enrollmentNo.toLowerCase() === trimmed ||
-            s.id.toLowerCase() === trimmed ||
-            (cleanNum.length >= 6 && s.mobile.replace(/\D/g, '').includes(cleanNum))
-        ) || students[0];
+    try {
+      const res = await apiClient.login(raw, password);
 
-      const user = {
-        id: matchedStudent.id,
-        role: ROLES.STUDENT,
-        name: matchedStudent.name,
-        email: matchedStudent.email,
-        enrollmentNo: matchedStudent.enrollmentNo,
-        roomNo: matchedStudent.roomNo,
-        department: matchedStudent.department,
-        avatar: matchedStudent.avatar,
-      };
+      if (!res?.user) {
+        return { success: false, message: 'Login failed. Invalid response from server.' };
+      }
+
+      const user = res.user;
       setCurrentUser(user);
       await MockDataService.saveSession(user);
-      router.replace('/(student)/dashboard');
-      return { success: true };
-    }
 
-    // 2. Check Parent Role
-    if (
-      requestedRole === ROLES.PARENT ||
-      trimmed === 'parent' ||
-      trimmed.includes('parent@') ||
-      trimmed.startsWith('par') ||
-      parents.some(
-        (p) =>
-          p.email.toLowerCase() === trimmed ||
-          p.id.toLowerCase() === trimmed ||
-          (cleanNum.length >= 6 && p.mobile.replace(/\D/g, '').includes(cleanNum))
-      )
-    ) {
-      const matchedParent =
-        parents.find(
-          (p) =>
-            p.email.toLowerCase() === trimmed ||
-            p.id.toLowerCase() === trimmed ||
-            (cleanNum.length >= 6 && p.mobile.replace(/\D/g, '').includes(cleanNum))
-        ) || parents[0];
+      // Fetch real data from MongoDB for this authenticated user
+      await fetchBackendData(user);
 
-      const child =
-        students.find((s) => s.id === matchedParent.studentIds[0]) || students[0];
-      const user = {
-        id: matchedParent.id,
-        role: ROLES.PARENT,
-        name: matchedParent.name,
-        email: matchedParent.email,
-        studentId: child.id,
-        studentName: child.name,
-        avatar: matchedParent.avatar,
+      // Route strictly to role dashboard
+      const roleHomeMap = {
+        [ROLES.STUDENT]: '/(student)/dashboard',
+        [ROLES.PARENT]: '/(parent)/dashboard',
+        [ROLES.WARDEN]: '/(warden)/dashboard',
+        [ROLES.GUARD]: '/(guard)/dashboard',
       };
-      setCurrentUser(user);
-      await MockDataService.saveSession(user);
-      router.replace('/(parent)/dashboard');
+
+      router.replace(roleHomeMap[user.role] || '/(auth)/login');
       return { success: true };
-    }
-
-    // 3. Check Warden Role
-    if (
-      requestedRole === ROLES.WARDEN ||
-      trimmed === 'warden' ||
-      trimmed.includes('warden@') ||
-      trimmed.startsWith('war') ||
-      trimmed.includes('upadhyay') ||
-      trimmed.includes('vijay') ||
-      wardens.some(
-        (w) =>
-          w.email.toLowerCase() === trimmed ||
-          w.id.toLowerCase() === trimmed ||
-          (cleanNum.length >= 6 && w.mobile.replace(/\D/g, '').includes(cleanNum))
-      )
-    ) {
-      const matchedWarden =
-        wardens.find(
-          (w) =>
-            w.email.toLowerCase() === trimmed ||
-            w.id.toLowerCase() === trimmed ||
-            (cleanNum.length >= 6 && w.mobile.replace(/\D/g, '').includes(cleanNum))
-        ) || wardens[0];
-
-      const user = {
-        id: matchedWarden.id,
-        role: ROLES.WARDEN,
-        name: matchedWarden.name,
-        email: matchedWarden.email,
-        block: matchedWarden.block,
-        avatar: matchedWarden.avatar,
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Login failed. Please verify your credentials or server connection.',
       };
-      setCurrentUser(user);
-      await MockDataService.saveSession(user);
-      router.replace('/(warden)/dashboard');
-      return { success: true };
-    }
-
-    // 4. Check Security Guard Role
-    if (
-      requestedRole === ROLES.GUARD ||
-      trimmed === 'guard' ||
-      trimmed.includes('guard@') ||
-      trimmed.startsWith('grd') ||
-      guards.some(
-        (g) =>
-          g.email?.toLowerCase() === trimmed ||
-          g.id.toLowerCase() === trimmed ||
-          (cleanNum.length >= 6 && g.mobile.replace(/\D/g, '').includes(cleanNum))
-      )
-    ) {
-      const matchedGuard =
-        guards.find(
-          (g) =>
-            g.email?.toLowerCase() === trimmed ||
-            g.id.toLowerCase() === trimmed ||
-            (cleanNum.length >= 6 && g.mobile.replace(/\D/g, '').includes(cleanNum))
-        ) || guards[0] || { id: 'GRD001', name: 'Balwant Singh' };
-
-      const user = {
-        id: matchedGuard.id,
-        role: ROLES.GUARD,
-        name: matchedGuard.name,
-        email: matchedGuard.email || 'guard@hosteleasy.demo',
-        gateNumber: matchedGuard.gateNumber || 'Main Gate 1',
-        avatar: matchedGuard.avatar,
-      };
-      setCurrentUser(user);
-      await MockDataService.saveSession(user);
-      router.replace('/(guard)/dashboard');
-      return { success: true };
-    }
-
-    return {
-      success: false,
-      message: 'Invalid credentials. Please verify your details or create a new account.',
-    };
-  };
-
-  const switchDemoRole = async (role) => {
-    if (role === ROLES.STUDENT) {
-      return login('student@hosteleasy.demo', 'demo123');
-    }
-    if (role === ROLES.PARENT) {
-      return login('parent@hosteleasy.demo', 'demo123');
-    }
-    if (role === ROLES.WARDEN) {
-      return login('warden@hosteleasy.demo', 'demo123');
-    }
-    if (role === ROLES.GUARD) {
-      return login('guard@hosteleasy.demo', 'demo123');
     }
   };
 
+  // Real Account Registration via Backend API & MongoDB
   const register = async (userData) => {
-    const { name, email, password, role, mobile, enrollmentNo, roomNo, department, block, gateNumber } = userData;
+    const { name, email, password, role } = userData;
 
-    if (!name?.trim() || !email?.trim() || !password?.trim()) {
-      return { success: false, message: 'Please fill in all required fields.' };
+    if (!name?.trim() || !email?.trim() || !password?.trim() || !role) {
+      return { success: false, message: 'Please complete all required fields.' };
     }
 
-    const trimmedEmail = email.trim().toLowerCase();
+    try {
+      const res = await apiClient.register(userData);
 
-    // Check if email already exists
-    if (
-      students.some((s) => s.email.toLowerCase() === trimmedEmail) ||
-      wardens.some((w) => w.email.toLowerCase() === trimmedEmail) ||
-      parents.some((p) => p.email.toLowerCase() === trimmedEmail) ||
-      guards.some((g) => g.email?.toLowerCase() === trimmedEmail)
-    ) {
-      return { success: false, message: 'An account with this email address already exists.' };
-    }
+      if (!res?.user) {
+        return { success: false, message: 'Registration failed. Unexpected response from server.' };
+      }
 
-    let newUser;
+      const user = res.user;
+      setCurrentUser(user);
+      await MockDataService.saveSession(user);
 
-    if (role === ROLES.STUDENT) {
-      const studentId = `STU${Date.now().toString().slice(-4)}`;
-      const newStudent = {
-        id: studentId,
-        name: name.trim(),
-        enrollmentNo: (enrollmentNo || `EN${Date.now().toString().slice(-6)}`).toUpperCase().trim(),
-        department: department || 'Computer Science & Engineering',
-        deptCode: department?.slice(0, 3)?.toUpperCase() || 'CSE',
-        semester: '1st Semester',
-        roomNo: roomNo || 'A-101',
-        block: block || 'Block A',
-        email: trimmedEmail,
-        mobile: mobile?.trim() || '+91 98765 00000',
-        parentId: '',
-        parentName: '',
-        parentMobile: '',
-        parentEmail: '',
-        hostelStatus: HOSTEL_STATUS.PRESENT,
-        admissionDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        bloodGroup: 'B+',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-        academicHistory: [],
+      // Fetch real fresh data
+      await fetchBackendData(user);
+
+      const roleHomeMap = {
+        [ROLES.STUDENT]: '/(student)/dashboard',
+        [ROLES.PARENT]: '/(parent)/dashboard',
+        [ROLES.WARDEN]: '/(warden)/dashboard',
+        [ROLES.GUARD]: '/(guard)/dashboard',
       };
 
-      setStudents((prev) => [newStudent, ...prev]);
-
-      newUser = {
-        id: newStudent.id,
-        role: ROLES.STUDENT,
-        name: newStudent.name,
-        email: newStudent.email,
-        enrollmentNo: newStudent.enrollmentNo,
-        roomNo: newStudent.roomNo,
-        department: newStudent.department,
-        avatar: newStudent.avatar,
-      };
-    } else if (role === ROLES.PARENT) {
-      const parentId = `PAR${Date.now().toString().slice(-4)}`;
-      const linkedStudent = students[0];
-      const newParent = {
-        id: parentId,
-        name: name.trim(),
-        email: trimmedEmail,
-        mobile: mobile?.trim() || '+91 98765 00000',
-        relationship: 'Parent / Guardian',
-        occupation: 'Guardian',
-        address: 'Registered Residence',
-        studentIds: [linkedStudent?.id || 'STU001'],
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
-      };
-
-      newUser = {
-        id: newParent.id,
-        role: ROLES.PARENT,
-        name: newParent.name,
-        email: newParent.email,
-        studentId: linkedStudent?.id || 'STU001',
-        studentName: linkedStudent?.name || 'Student',
-        avatar: newParent.avatar,
-      };
-    } else if (role === ROLES.WARDEN) {
-      const wardenId = `WAR${Date.now().toString().slice(-4)}`;
-      newUser = {
-        id: wardenId,
-        role: ROLES.WARDEN,
-        name: name.trim(),
-        email: trimmedEmail,
-        block: block || 'Block A & B (Hostel Warden)',
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&auto=format&fit=crop&q=80',
-      };
-    } else if (role === ROLES.GUARD) {
-      const guardId = `GRD${Date.now().toString().slice(-4)}`;
-      const newGuard = {
-        id: guardId,
-        name: name.trim(),
-        email: trimmedEmail,
-        mobile: mobile?.trim() || '+91 98765 00000',
-        gateNumber: gateNumber || 'Main Gate 1',
-        shift: 'Day Shift (06:00 AM - 02:00 PM)',
-        status: 'ON_DUTY',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-      };
-      setGuards((prev) => [newGuard, ...prev]);
-
-      newUser = {
-        id: newGuard.id,
-        role: ROLES.GUARD,
-        name: newGuard.name,
-        email: newGuard.email,
-        gateNumber: newGuard.gateNumber,
-        avatar: newGuard.avatar,
+      router.replace(roleHomeMap[user.role] || '/(auth)/login');
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Registration failed. Please check your details and try again.',
       };
     }
-
-    setCurrentUser(newUser);
-    await MockDataService.saveSession(newUser);
-
-    const roleTarget = {
-      [ROLES.STUDENT]: '/(student)/dashboard',
-      [ROLES.PARENT]: '/(parent)/dashboard',
-      [ROLES.WARDEN]: '/(warden)/dashboard',
-      [ROLES.GUARD]: '/(guard)/dashboard',
-    };
-
-    router.replace(roleTarget[role] || '/(auth)/login');
-    return { success: true };
   };
 
+  // Real Logout
   const logout = async () => {
-    setCurrentUser(null);
-    await MockDataService.clearSession();
-    router.replace('/(auth)/login');
-  };
-
-  // Helper date/time formatter
-  const getNowFormatted = () => {
-    const d = new Date();
-    const hours = d.getHours();
-    const mins = d.getMinutes().toString().padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    return `Today, ${displayHours}:${mins} ${ampm}`;
-  };
-
-  // --- WORKFLOW: Leave Submission (Student) ---
-  const submitLeaveRequest = (leaveData) => {
-    const newId = `LR-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
-    const student = students.find((s) => s.id === leaveData.studentId) || students[0];
-
-    const newRequest = {
-      id: newId,
-      studentId: student.id,
-      studentName: student.name,
-      enrollmentNo: student.enrollmentNo,
-      department: student.deptCode || 'CSE',
-      semester: student.semester,
-      roomNo: student.roomNo,
-      reason: leaveData.reason,
-      detailedExplanation: leaveData.detailedExplanation || '',
-      destinationAddress: leaveData.destinationAddress,
-      destinationCity: leaveData.destinationCity,
-      emergencyContact: leaveData.emergencyContact || student.parentMobile,
-      departureDate: leaveData.departureDate,
-      expectedReturnDate: leaveData.expectedReturnDate,
-      actualExitTime: null,
-      actualReturnTime: null,
-      status: LEAVE_STATUS.PENDING_PARENT_APPROVAL,
-      submittedAt: getNowFormatted(),
-      parentActionAt: null,
-      parentActionComment: null,
-      wardenActionAt: null,
-      wardenActionComment: null,
-      guardExitRecordedBy: null,
-      guardReturnRecordedBy: null,
-      rejectionReason: null,
-      extensionHistory: [],
-    };
-
-    setLeaveRequests((prev) => [newRequest, ...prev]);
-
-    // Add activity
-    const newActivity = {
-      id: `ACT-${Date.now()}`,
-      studentName: student.name,
-      enrollmentNo: student.enrollmentNo,
-      roomNo: student.roomNo,
-      type: 'LEAVE_SUBMITTED',
-      title: 'New Leave Request Submitted',
-      description: `Applied for leave from ${leaveData.departureDate} to ${leaveData.expectedReturnDate}.`,
-      timestamp: getNowFormatted(),
-      badgeType: 'info',
-      status: LEAVE_STATUS.PENDING_PARENT_APPROVAL,
-    };
-    setActivities((prev) => [newActivity, ...prev]);
-
-    // Add notification for parent
-    const parentNotif = {
-      id: `NOTIF-${Date.now()}`,
-      userId: student.parentId || 'PAR001',
-      role: ROLES.PARENT,
-      title: 'Action Required: New Leave Request',
-      message: `${student.name} requested leave: "${leaveData.reason}". Needs your approval.`,
-      timestamp: getNowFormatted(),
-      read: false,
-      type: 'action',
-      requestId: newId,
-    };
-    setNotifications((prev) => [parentNotif, ...prev]);
-
-    return newRequest;
-  };
-
-  // --- WORKFLOW: Parent Decision ---
-  const parentApproveLeave = (requestId, comment = 'Approved by Parent') => {
-    let updatedRequest = null;
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          updatedRequest = {
-            ...req,
-            status: LEAVE_STATUS.PARENT_APPROVED,
-            parentActionAt: getNowFormatted(),
-            parentActionComment: comment,
-            rejectionReason: null,
-          };
-          return updatedRequest;
-        }
-        return req;
-      })
-    );
-
-    if (updatedRequest) {
-      // Activity
-      const newActivity = {
-        id: `ACT-${Date.now()}`,
-        studentName: updatedRequest.studentName,
-        enrollmentNo: updatedRequest.enrollmentNo,
-        roomNo: updatedRequest.roomNo,
-        type: 'PARENT_APPROVED',
-        title: 'Parent Approval Received',
-        description: `Parent authorized leave: "${updatedRequest.reason}".`,
-        timestamp: getNowFormatted(),
-        badgeType: 'success',
-        status: LEAVE_STATUS.PARENT_APPROVED,
-      };
-      setActivities((prev) => [newActivity, ...prev]);
-
-      // Notifications
-      const studentNotif = {
-        id: `NOTIF-${Date.now()}-1`,
-        userId: updatedRequest.studentId,
-        role: ROLES.STUDENT,
-        title: 'Parent Approved Your Leave',
-        message: 'Your parent has approved your leave. Forwarded for gate clearance.',
-        timestamp: getNowFormatted(),
-        read: false,
-        type: 'success',
-        requestId,
-      };
-      const wardenNotif = {
-        id: `NOTIF-${Date.now()}-2`,
-        userId: 'WAR001',
-        role: ROLES.WARDEN,
-        title: 'Parent Approved: Ready for Clearance',
-        message: `${updatedRequest.studentName} received parent approval for "${updatedRequest.reason}".`,
-        timestamp: getNowFormatted(),
-        read: false,
-        type: 'action',
-        requestId,
-      };
-      setNotifications((prev) => [studentNotif, wardenNotif, ...prev]);
+    try {
+      await apiClient.logout();
+    } catch (e) {
+      console.warn('Logout API error:', e.message);
+    } finally {
+      setCurrentUser(null);
+      setStudents([]);
+      setRooms([]);
+      setLeaveRequests([]);
+      setActivities([]);
+      setNotifications([]);
+      setGuards([]);
+      setAttendance({
+        date: new Date().toISOString().split('T')[0],
+        records: [],
+        stats: { totalDays: 0, presentDays: 0, absentDays: 0, leaveDays: 0, attendanceRate: 100 },
+        today: null,
+      });
+      await MockDataService.clearSession();
+      router.replace('/(auth)/login');
     }
   };
 
-  const parentRejectLeave = (requestId, reason) => {
-    let updatedRequest = null;
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          updatedRequest = {
-            ...req,
-            status: LEAVE_STATUS.PARENT_REJECTED,
-            parentActionAt: getNowFormatted(),
-            rejectionReason: reason || 'Declined by parent without detailed remarks.',
-          };
-          return updatedRequest;
-        }
-        return req;
-      })
-    );
+  // --- Real Leave Workflows with Backend API & MongoDB ---
 
-    if (updatedRequest) {
-      const newActivity = {
-        id: `ACT-${Date.now()}`,
-        studentName: updatedRequest.studentName,
-        enrollmentNo: updatedRequest.enrollmentNo,
-        roomNo: updatedRequest.roomNo,
-        type: 'PARENT_REJECTED',
-        title: 'Leave Rejected by Parent',
-        description: `Parent rejected: "${reason || 'Permission denied'}".`,
-        timestamp: getNowFormatted(),
-        badgeType: 'danger',
-        status: LEAVE_STATUS.PARENT_REJECTED,
+  const submitLeaveRequest = async (leaveData) => {
+    try {
+      const payload = {
+        reason: leaveData.reason,
+        detailedExplanation: leaveData.detailedExplanation || '',
+        destinationAddress: leaveData.destinationAddress,
+        destinationCity: leaveData.destinationCity,
+        departureDate: leaveData.departureDate,
+        expectedReturnDate: leaveData.expectedReturnDate,
+        emergencyContact: leaveData.emergencyContact,
       };
-      setActivities((prev) => [newActivity, ...prev]);
 
-      const studentNotif = {
-        id: `NOTIF-${Date.now()}`,
-        userId: updatedRequest.studentId,
-        role: ROLES.STUDENT,
-        title: 'Leave Request Declined',
-        message: `Your parent rejected your leave: "${reason || 'Permission denied'}".`,
-        timestamp: getNowFormatted(),
-        read: false,
-        type: 'error',
-        requestId,
-      };
-      setNotifications((prev) => [studentNotif, ...prev]);
+      const res = await apiClient.applyLeave(payload);
+      if (res?.leave) {
+        const normalized = normalizeLeave(res.leave);
+        setLeaveRequests((prev) => [normalized, ...prev.filter((l) => l.id !== normalized.id)]);
+        return normalized;
+      }
+      await fetchBackendData(currentUser);
+      return res;
+    } catch (err) {
+      console.error('Failed to submit leave request:', err);
+      throw err;
     }
   };
 
-  // --- WORKFLOW: Warden Decision ---
-  const wardenApproveLeave = (requestId, comment = 'Warden clearance approved') => {
-    let updatedRequest = null;
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          updatedRequest = {
-            ...req,
-            status: LEAVE_STATUS.WARDEN_APPROVED,
-            wardenActionAt: getNowFormatted(),
-            wardenActionComment: comment,
-          };
-          return updatedRequest;
-        }
-        return req;
-      })
-    );
-
-    if (updatedRequest) {
-      const newActivity = {
-        id: `ACT-${Date.now()}`,
-        studentName: updatedRequest.studentName,
-        enrollmentNo: updatedRequest.enrollmentNo,
-        roomNo: updatedRequest.roomNo,
-        type: 'WARDEN_APPROVED',
-        title: 'Warden Clearance Granted',
-        description: `Authorized gate pass for ${updatedRequest.studentName}.`,
-        timestamp: getNowFormatted(),
-        badgeType: 'success',
-        status: LEAVE_STATUS.WARDEN_APPROVED,
-      };
-      setActivities((prev) => [newActivity, ...prev]);
-
-      const studentNotif = {
-        id: `NOTIF-${Date.now()}-1`,
-        userId: updatedRequest.studentId,
-        role: ROLES.STUDENT,
-        title: 'Gate Pass Granted',
-        message: 'Warden has approved your gate clearance. You may exit when scheduled.',
-        timestamp: getNowFormatted(),
-        read: false,
-        type: 'success',
-        requestId,
-      };
-      const guardNotif = {
-        id: `NOTIF-${Date.now()}-2`,
-        userId: 'GRD001',
-        role: ROLES.GUARD,
-        title: 'Approved Exit Added',
-        message: `${updatedRequest.studentName} is cleared for exit on ${updatedRequest.departureDate}.`,
-        timestamp: getNowFormatted(),
-        read: false,
-        type: 'info',
-        requestId,
-      };
-      setNotifications((prev) => [studentNotif, guardNotif, ...prev]);
+  const parentApproveLeave = async (requestId, comment = 'Approved by Parent') => {
+    try {
+      const res = await apiClient.parentDecision(requestId, true, comment);
+      if (res?.leave) {
+        const normalized = normalizeLeave(res.leave);
+        setLeaveRequests((prev) => prev.map((l) => (l.id === requestId ? normalized : l)));
+      } else {
+        await fetchBackendData(currentUser);
+      }
+    } catch (err) {
+      console.error('Failed to approve leave by parent:', err);
+      throw err;
     }
   };
 
-  const wardenRejectLeave = (requestId, reason) => {
-    let updatedRequest = null;
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          updatedRequest = {
-            ...req,
-            status: LEAVE_STATUS.REJECTED,
-            wardenActionAt: getNowFormatted(),
-            rejectionReason: reason || 'Warden declined clearance.',
-          };
-          return updatedRequest;
-        }
-        return req;
-      })
-    );
-
-    if (updatedRequest) {
-      const newActivity = {
-        id: `ACT-${Date.now()}`,
-        studentName: updatedRequest.studentName,
-        enrollmentNo: updatedRequest.enrollmentNo,
-        roomNo: updatedRequest.roomNo,
-        type: 'WARDEN_REJECTED',
-        title: 'Warden Rejected Leave',
-        description: `Warden denied: "${reason}".`,
-        timestamp: getNowFormatted(),
-        badgeType: 'danger',
-        status: LEAVE_STATUS.REJECTED,
-      };
-      setActivities((prev) => [newActivity, ...prev]);
-
-      const studentNotif = {
-        id: `NOTIF-${Date.now()}`,
-        userId: updatedRequest.studentId,
-        role: ROLES.STUDENT,
-        title: 'Clearance Declined by Warden',
-        message: `Warden rejected your leave pass: "${reason}".`,
-        timestamp: getNowFormatted(),
-        read: false,
-        type: 'error',
-        requestId,
-      };
-      setNotifications((prev) => [studentNotif, ...prev]);
+  const parentRejectLeave = async (requestId, reason = 'Declined by parent') => {
+    try {
+      const res = await apiClient.parentDecision(requestId, false, reason);
+      if (res?.leave) {
+        const normalized = normalizeLeave(res.leave);
+        setLeaveRequests((prev) => prev.map((l) => (l.id === requestId ? normalized : l)));
+      } else {
+        await fetchBackendData(currentUser);
+      }
+    } catch (err) {
+      console.error('Failed to reject leave by parent:', err);
+      throw err;
     }
   };
 
-  // --- WORKFLOW: Guard Gate Exit ---
-  const recordGateExit = (requestId, guardName = 'Balwant Singh') => {
-    let updatedRequest = null;
-    const exitTimestamp = getNowFormatted();
+  const wardenApproveLeave = async (requestId, comment = 'Warden clearance approved') => {
+    try {
+      const res = await apiClient.wardenDecision(requestId, true, comment);
+      if (res?.leave) {
+        const normalized = normalizeLeave(res.leave);
+        setLeaveRequests((prev) => prev.map((l) => (l.id === requestId ? normalized : l)));
+      } else {
+        await fetchBackendData(currentUser);
+      }
+    } catch (err) {
+      console.error('Failed to approve leave by warden:', err);
+      throw err;
+    }
+  };
 
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          updatedRequest = {
-            ...req,
-            status: LEAVE_STATUS.CHECKED_OUT,
-            actualExitTime: exitTimestamp,
-            guardExitRecordedBy: guardName,
-          };
-          return updatedRequest;
-        }
-        return req;
-      })
-    );
+  const wardenRejectLeave = async (requestId, reason = 'Warden declined clearance') => {
+    try {
+      const res = await apiClient.wardenDecision(requestId, false, reason);
+      if (res?.leave) {
+        const normalized = normalizeLeave(res.leave);
+        setLeaveRequests((prev) => prev.map((l) => (l.id === requestId ? normalized : l)));
+      } else {
+        await fetchBackendData(currentUser);
+      }
+    } catch (err) {
+      console.error('Failed to reject leave by warden:', err);
+      throw err;
+    }
+  };
 
-    if (updatedRequest) {
-      // Update student hostel status to OUTSIDE_HOSTEL
+  const recordGateExit = async (requestId, remarks = 'Gate exit cleared', gateNumber = 'Main Gate 1') => {
+    try {
+      const res = await apiClient.recordGateExit(requestId, remarks, gateNumber);
+      if (res?.leave) {
+        const normalized = normalizeLeave(res.leave);
+        setLeaveRequests((prev) => prev.map((l) => (l.id === requestId ? normalized : l)));
+      }
+      await fetchBackendData(currentUser);
+      return res;
+    } catch (err) {
+      console.error('Failed to record gate exit:', err);
+      throw err;
+    }
+  };
+
+  const recordGateReturn = async (requestId, remarks = 'Gate return verified', gateNumber = 'Main Gate 1') => {
+    try {
+      const res = await apiClient.recordGateReturn(requestId, remarks, gateNumber);
+      if (res?.leave) {
+        const normalized = normalizeLeave(res.leave);
+        setLeaveRequests((prev) => prev.map((l) => (l.id === requestId ? normalized : l)));
+      }
+      await fetchBackendData(currentUser);
+      return res;
+    } catch (err) {
+      console.error('Failed to record gate return:', err);
+      throw err;
+    }
+  };
+
+  const submitLeaveExtension = async (requestId, newReturnDate, reason) => {
+    try {
+      const res = await apiClient.requestExtension(requestId, newReturnDate, reason);
+      if (res?.leave) {
+        const normalized = normalizeLeave(res.leave);
+        setLeaveRequests((prev) => prev.map((l) => (l.id === requestId ? normalized : l)));
+      } else {
+        await fetchBackendData(currentUser);
+      }
+      return res;
+    } catch (err) {
+      console.error('Failed to request leave extension:', err);
+      throw err;
+    }
+  };
+
+  const parentApproveExtension = async (requestId) => {
+    try {
+      return await parentApproveLeave(requestId, 'Extension approved by parent');
+    } catch (err) {
+      console.error('Failed to approve extension:', err);
+      throw err;
+    }
+  };
+
+  const parentRejectExtension = async (requestId, reason) => {
+    try {
+      return await parentRejectLeave(requestId, reason || 'Extension declined by parent');
+    } catch (err) {
+      console.error('Failed to reject extension:', err);
+      throw err;
+    }
+  };
+
+  // --- Real Student Management ---
+
+  const addStudent = async (studentData) => {
+    try {
+      const res = await apiClient.createStudent(studentData);
+      if (res?.student) {
+        const normalized = normalizeStudent(res.student);
+        setStudents((prev) => [normalized, ...prev]);
+        await fetchBackendData(currentUser);
+        return normalized;
+      }
+      await fetchBackendData(currentUser);
+      return res;
+    } catch (err) {
+      console.error('Failed to create student:', err);
+      throw err;
+    }
+  };
+
+  const deleteStudent = async (studentId) => {
+    try {
+      await apiClient.deleteStudent(studentId);
+      setStudents((prev) => prev.filter((s) => s.id !== studentId && s._id !== studentId));
+      await fetchBackendData(currentUser);
+    } catch (err) {
+      console.error('Failed to delete student:', err);
+      throw err;
+    }
+  };
+
+  const allocateRoom = async (studentId, newRoomNo) => {
+    try {
+      await apiClient.reallocateRoom(studentId, newRoomNo);
       setStudents((prev) =>
-        prev.map((s) => (s.id === updatedRequest.studentId ? { ...s, hostelStatus: HOSTEL_STATUS.OUTSIDE } : s))
+        prev.map((s) => (s.id === studentId || s._id === studentId ? { ...s, roomNo: newRoomNo } : s))
       );
-
-      // Activity
-      const newActivity = {
-        id: `ACT-${Date.now()}`,
-        studentName: updatedRequest.studentName,
-        enrollmentNo: updatedRequest.enrollmentNo,
-        roomNo: updatedRequest.roomNo,
-        type: 'GATE_EXIT',
-        title: 'Gate Exit Cleared',
-        description: `Departed campus at ${exitTimestamp}. Checked by Guard ${guardName}.`,
-        timestamp: exitTimestamp,
-        badgeType: 'warning',
-        status: LEAVE_STATUS.CHECKED_OUT,
-      };
-      setActivities((prev) => [newActivity, ...prev]);
-
-      // Notifications to Parent & Warden
-      const student = students.find((s) => s.id === updatedRequest.studentId);
-      const parentNotif = {
-        id: `NOTIF-${Date.now()}-1`,
-        userId: student?.parentId || 'PAR001',
-        role: ROLES.PARENT,
-        title: 'Child Departed Hostel',
-        message: `${updatedRequest.studentName} has checked out of hostel at ${exitTimestamp}.`,
-        timestamp: exitTimestamp,
-        read: false,
-        type: 'info',
-        requestId,
-      };
-      const wardenNotif = {
-        id: `NOTIF-${Date.now()}-2`,
-        userId: 'WAR001',
-        role: ROLES.WARDEN,
-        title: 'Student Exit Recorded',
-        message: `${updatedRequest.studentName} checked out through Main Gate.`,
-        timestamp: exitTimestamp,
-        read: false,
-        type: 'info',
-        requestId,
-      };
-      setNotifications((prev) => [parentNotif, wardenNotif, ...prev]);
+      await fetchBackendData(currentUser);
+    } catch (err) {
+      console.error('Failed to reallocate room:', err);
+      throw err;
     }
   };
 
-  // --- WORKFLOW: Guard Gate Return ---
-  const recordGateReturn = (requestId, guardName = 'Balwant Singh') => {
-    let updatedRequest = null;
-    const returnTimestamp = getNowFormatted();
-
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          updatedRequest = {
-            ...req,
-            status: LEAVE_STATUS.CHECKED_IN,
-            actualReturnTime: returnTimestamp,
-            guardReturnRecordedBy: guardName,
-          };
-          return updatedRequest;
-        }
-        return req;
-      })
-    );
-
-    if (updatedRequest) {
-      // Update student hostel status to PRESENT_IN_HOSTEL
-      setStudents((prev) =>
-        prev.map((s) => (s.id === updatedRequest.studentId ? { ...s, hostelStatus: HOSTEL_STATUS.PRESENT } : s))
-      );
-
-      // Activity
-      const newActivity = {
-        id: `ACT-${Date.now()}`,
-        studentName: updatedRequest.studentName,
-        enrollmentNo: updatedRequest.enrollmentNo,
-        roomNo: updatedRequest.roomNo,
-        type: 'GATE_RETURN',
-        title: 'Student Returned to Hostel',
-        description: `Returned safely at ${returnTimestamp}. Verified by Guard ${guardName}.`,
-        timestamp: returnTimestamp,
-        badgeType: 'success',
-        status: LEAVE_STATUS.CHECKED_IN,
-      };
-      setActivities((prev) => [newActivity, ...prev]);
-
-      // Notifications
-      const student = students.find((s) => s.id === updatedRequest.studentId);
-      const parentNotif = {
-        id: `NOTIF-${Date.now()}-1`,
-        userId: student?.parentId || 'PAR001',
-        role: ROLES.PARENT,
-        title: 'Child Returned Safely',
-        message: `${updatedRequest.studentName} has arrived back at the hostel.`,
-        timestamp: returnTimestamp,
-        read: false,
-        type: 'success',
-        requestId,
-      };
-      setNotifications((prev) => [parentNotif, ...prev]);
-    }
-  };
-
-  // --- WORKFLOW: Extend Leave ---
-  const submitLeaveExtension = (requestId, newReturnDate, reason) => {
-    let updatedRequest = null;
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          const extensionRecord = {
-            requestedAt: getNowFormatted(),
-            oldReturnDate: req.expectedReturnDate,
-            newReturnDate,
-            reason,
-            status: 'PENDING_PARENT_APPROVAL',
-          };
-          updatedRequest = {
-            ...req,
-            status: LEAVE_STATUS.EXTENSION_PENDING,
-            extensionHistory: [...(req.extensionHistory || []), extensionRecord],
-          };
-          return updatedRequest;
-        }
-        return req;
-      })
-    );
-
-    if (updatedRequest) {
-      const newActivity = {
-        id: `ACT-${Date.now()}`,
-        studentName: updatedRequest.studentName,
-        enrollmentNo: updatedRequest.enrollmentNo,
-        roomNo: updatedRequest.roomNo,
-        type: 'EXTENSION_REQUESTED',
-        title: 'Leave Extension Requested',
-        description: `Extension till ${newReturnDate} requested. Reason: ${reason}.`,
-        timestamp: getNowFormatted(),
-        badgeType: 'warning',
-        status: LEAVE_STATUS.EXTENSION_PENDING,
-      };
-      setActivities((prev) => [newActivity, ...prev]);
-
-      const student = students.find((s) => s.id === updatedRequest.studentId);
-      const parentNotif = {
-        id: `NOTIF-${Date.now()}`,
-        userId: student?.parentId || 'PAR001',
-        role: ROLES.PARENT,
-        title: 'Action Required: Leave Extension',
-        message: `${updatedRequest.studentName} requested return extension to ${newReturnDate}.`,
-        timestamp: getNowFormatted(),
-        read: false,
-        type: 'action',
-        requestId,
-      };
-      setNotifications((prev) => [parentNotif, ...prev]);
-    }
-  };
-
-  const parentApproveExtension = (requestId) => {
-    let updatedRequest = null;
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          const history = [...(req.extensionHistory || [])];
-          const latest = history[history.length - 1];
-          const newExpectedDate = latest ? latest.newReturnDate : req.expectedReturnDate;
-          if (latest) {
-            history[history.length - 1] = { ...latest, status: 'APPROVED' };
-          }
-
-          updatedRequest = {
-            ...req,
-            expectedReturnDate: newExpectedDate,
-            status: LEAVE_STATUS.EXTENSION_APPROVED,
-            extensionHistory: history,
-          };
-          return updatedRequest;
-        }
-        return req;
-      })
-    );
-
-    if (updatedRequest) {
-      const newActivity = {
-        id: `ACT-${Date.now()}`,
-        studentName: updatedRequest.studentName,
-        enrollmentNo: updatedRequest.enrollmentNo,
-        roomNo: updatedRequest.roomNo,
-        type: 'EXTENSION_APPROVED',
-        title: 'Extension Approved by Parent',
-        description: `New expected return date updated to ${updatedRequest.expectedReturnDate}.`,
-        timestamp: getNowFormatted(),
-        badgeType: 'success',
-        status: LEAVE_STATUS.EXTENSION_APPROVED,
-      };
-      setActivities((prev) => [newActivity, ...prev]);
-
-      const studentNotif = {
-        id: `NOTIF-${Date.now()}-1`,
-        userId: updatedRequest.studentId,
-        role: ROLES.STUDENT,
-        title: 'Extension Approved',
-        message: `Your return date is now extended to ${updatedRequest.expectedReturnDate}.`,
-        timestamp: getNowFormatted(),
-        read: false,
-        type: 'success',
-        requestId,
-      };
-      const wardenNotif = {
-        id: `NOTIF-${Date.now()}-2`,
-        userId: 'WAR001',
-        role: ROLES.WARDEN,
-        title: 'Return Date Extended',
-        message: `${updatedRequest.studentName} return date updated to ${updatedRequest.expectedReturnDate}.`,
-        timestamp: getNowFormatted(),
-        read: false,
-        type: 'info',
-        requestId,
-      };
-      setNotifications((prev) => [studentNotif, wardenNotif, ...prev]);
-    }
-  };
-
-  const parentRejectExtension = (requestId, reason) => {
-    let updatedRequest = null;
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          const history = [...(req.extensionHistory || [])];
-          if (history.length > 0) {
-            history[history.length - 1] = {
-              ...history[history.length - 1],
-              status: 'REJECTED',
-              rejectionReason: reason || 'Parent rejected extension',
-            };
-          }
-          // Request reverts to previous active checked out or approved state
-          const prevStatus = req.actualExitTime ? LEAVE_STATUS.CHECKED_OUT : LEAVE_STATUS.WARDEN_APPROVED;
-          updatedRequest = {
-            ...req,
-            status: prevStatus,
-            extensionHistory: history,
-          };
-          return updatedRequest;
-        }
-        return req;
-      })
-    );
-
-    if (updatedRequest) {
-      const newActivity = {
-        id: `ACT-${Date.now()}`,
-        studentName: updatedRequest.studentName,
-        enrollmentNo: updatedRequest.enrollmentNo,
-        roomNo: updatedRequest.roomNo,
-        type: 'EXTENSION_REJECTED',
-        title: 'Extension Request Rejected',
-        description: `Parent declined extension: "${reason || 'Return on original date'}".`,
-        timestamp: getNowFormatted(),
-        badgeType: 'danger',
-        status: LEAVE_STATUS.EXTENSION_REJECTED,
-      };
-      setActivities((prev) => [newActivity, ...prev]);
-
-      const studentNotif = {
-        id: `NOTIF-${Date.now()}`,
-        userId: updatedRequest.studentId,
-        role: ROLES.STUDENT,
-        title: 'Extension Declined by Parent',
-        message: `Extension denied: "${reason || 'Must return on original date'}".`,
-        timestamp: getNowFormatted(),
-        read: false,
-        type: 'error',
-        requestId,
-      };
-      setNotifications((prev) => [studentNotif, ...prev]);
-    }
-  };
-
-  // --- Student Management (Warden & Student Profile) ---
   const updateStudentProfile = (studentId, updatedFields) => {
-    setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, ...updatedFields } : s)));
-    // Also update currentUser if it's the student
-    if (currentUser && currentUser.id === studentId) {
+    setStudents((prev) =>
+      prev.map((s) => (s.id === studentId || s._id === studentId ? { ...s, ...updatedFields } : s))
+    );
+    if (currentUser && (currentUser.id === studentId || currentUser.studentId === studentId)) {
       const updatedUser = { ...currentUser, ...updatedFields };
       setCurrentUser(updatedUser);
       MockDataService.saveSession(updatedUser);
     }
   };
 
-  const addStudent = (studentData) => {
-    const newStudent = {
-      id: `STU${Math.floor(100 + Math.random() * 900)}`,
-      enrollmentNo: studentData.enrollmentNo,
-      name: studentData.name,
-      department: studentData.department,
-      deptCode: studentData.deptCode || 'CSE',
-      semester: studentData.semester,
-      roomNo: studentData.roomNo,
-      block: studentData.roomNo.startsWith('A') ? 'Block A' : 'Block B',
-      email: studentData.email,
-      mobile: studentData.mobile,
-      parentId: 'PAR001',
-      parentName: studentData.parentName,
-      parentMobile: studentData.parentMobile,
-      parentEmail: studentData.parentEmail || 'parent@demo.com',
-      hostelStatus: HOSTEL_STATUS.PRESENT,
-      admissionDate: '2024-08-01',
-      bloodGroup: studentData.bloodGroup || 'O+',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-      academicHistory: [
-        { year: '1st Year (2024-2025)', semester: 'Sem 1 & 2', gpa: '8.5', department: studentData.deptCode, roomNo: studentData.roomNo, attendance: '95%' },
-        { year: '2nd Year (2025-2026)', semester: 'Sem 3 & 4', gpa: 'Upcoming', department: studentData.deptCode, roomNo: studentData.roomNo, attendance: 'Planned' },
-        { year: '3rd Year (2026-2027)', semester: 'Sem 5 & 6', gpa: 'Upcoming', department: studentData.deptCode, roomNo: 'N/A', attendance: 'Planned' },
-        { year: '4th Year (2027-2028)', semester: 'Sem 7 & 8', gpa: 'Upcoming', department: studentData.deptCode, roomNo: 'N/A', attendance: 'Planned' },
-        { year: '5th Year / Integrated', semester: 'Honors', gpa: 'Upcoming', department: studentData.deptCode, roomNo: 'N/A', attendance: 'Planned' },
-      ],
-    };
+  // --- Real Attendance ---
 
-    setStudents((prev) => [newStudent, ...prev]);
-
-    // Update room occupancy
-    setRooms((prev) =>
-      prev.map((r) => {
-        if (r.roomNo === studentData.roomNo) {
-          const newOccupied = r.occupied + 1;
-          return {
-            ...r,
-            occupied: newOccupied,
-            available: Math.max(0, r.capacity - newOccupied),
-            studentIds: [...(r.studentIds || []), newStudent.id],
-          };
-        }
-        return r;
-      })
-    );
-
-    return newStudent;
+  const markRollCall = async (studentId, status, session = 'NIGHT_ROLL_CALL', remarks = '') => {
+    const todayDate = new Date().toISOString().split('T')[0];
+    try {
+      await apiClient.markAttendance({
+        date: todayDate,
+        records: [{ studentId, status, session, remarks }],
+      });
+      await fetchBackendData(currentUser);
+    } catch (err) {
+      console.error('Failed to mark roll call:', err);
+      throw err;
+    }
   };
 
-  const deleteStudent = (studentId) => {
-    setStudents((prev) => prev.filter((s) => s.id !== studentId));
-    // Remove from rooms
-    setRooms((prev) =>
-      prev.map((r) => ({
-        ...r,
-        studentIds: (r.studentIds || []).filter((id) => id !== studentId),
-        occupied: Math.max(0, (r.studentIds || []).filter((id) => id !== studentId).length),
-        available: r.capacity - Math.max(0, (r.studentIds || []).filter((id) => id !== studentId).length),
-      }))
-    );
+  const saveBatchRollCall = async (rollCallMap, date, session = 'NIGHT_ROLL_CALL') => {
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    const records = Object.entries(rollCallMap).map(([studentId, entry]) => ({
+      studentId,
+      status: entry.status,
+      session,
+      remarks: entry.remarks || 'Roll-call verified',
+    }));
+
+    try {
+      const res = await apiClient.markAttendance({
+        date: targetDate,
+        records,
+      });
+
+      const presentCount = records.filter((r) => r.status === 'PRESENT').length;
+      const leaveCount = records.filter((r) => r.status === 'ON_LEAVE').length;
+      const absentCount = records.filter((r) => r.status === 'ABSENT').length;
+
+      await fetchBackendData(currentUser);
+      return { success: true, presentCount, leaveCount, absentCount, res };
+    } catch (err) {
+      console.error('Failed to save batch roll call:', err);
+      throw err;
+    }
   };
 
-  // --- Room Allocation (Warden) ---
-  const allocateRoom = (studentId, newRoomNo) => {
-    const student = students.find((s) => s.id === studentId);
-    if (!student) return;
-    const oldRoomNo = student.roomNo;
+  // --- Guard & Notifications ---
 
-    // Update student
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, roomNo: newRoomNo, block: newRoomNo.startsWith('A') ? 'Block A' : 'Block B' } : s))
-    );
-
-    // Update rooms
-    setRooms((prev) =>
-      prev.map((r) => {
-        if (r.roomNo === oldRoomNo) {
-          const updatedIds = (r.studentIds || []).filter((id) => id !== studentId);
-          return {
-            ...r,
-            studentIds: updatedIds,
-            occupied: updatedIds.length,
-            available: r.capacity - updatedIds.length,
-          };
-        }
-        if (r.roomNo === newRoomNo) {
-          const updatedIds = [...(r.studentIds || []), studentId];
-          return {
-            ...r,
-            studentIds: updatedIds,
-            occupied: updatedIds.length,
-            available: Math.max(0, r.capacity - updatedIds.length),
-          };
-        }
-        return r;
-      })
-    );
-  };
-
-  // --- Guard Management (Warden) ---
   const toggleGuardDuty = (guardId) => {
     setGuards((prev) =>
       prev.map((g) => (g.id === guardId ? { ...g, status: g.status === 'ON_DUTY' ? 'OFF_DUTY' : 'ON_DUTY' } : g))
@@ -1098,43 +549,35 @@ export function AppProvider({ children }) {
   };
 
   const addGuard = (guardData) => {
-    const newGuard = {
-      id: `GRD${Math.floor(100 + Math.random() * 900)}`,
-      name: guardData.name,
-      mobile: guardData.mobile,
-      email: guardData.email || 'guard@hosteleasy.demo',
-      gateNumber: guardData.gateNumber || 'Main Gate 1',
-      shift: guardData.shift || 'Day Shift (06:00 AM - 02:00 PM)',
-      status: 'ON_DUTY',
-      avatar: 'https://images.unsplash.com/photo-1542909168-82c3e7fdca5c?w=200&auto=format&fit=crop&q=80',
-    };
-    setGuards((prev) => [...prev, newGuard]);
+    setGuards((prev) => [guardData, ...prev]);
   };
 
-  // Notifications
   const markNotificationAsRead = (notifId) => {
     setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, read: true } : n)));
   };
 
-  const markAllNotificationsAsRead = (role) => {
-    setNotifications((prev) => prev.map((n) => (n.role === role ? { ...n, read: true } : n)));
-  };
-
-  // Reset entire demo data
-  const resetDemoData = async () => {
-    const data = await MockDataService.resetToDefaults();
-    if (data) {
-      setStudents(data.students);
-      setRooms(data.rooms);
-      setLeaveRequests(data.leaveRequests);
-      setActivities(data.activities);
-      setNotifications(data.notifications);
-      setGuards(data.guards);
+  const markAllNotificationsAsRead = async () => {
+    try {
+      await apiClient.markAllNotificationsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch {
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     }
   };
 
-  // Computed Real-Time Statistics
+  const resetDemoData = async () => {
+    await MockDataService.clearAll();
+    setStudents([]);
+    setRooms([]);
+    setLeaveRequests([]);
+    setActivities([]);
+    setNotifications([]);
+    setGuards([]);
+  };
+
+  // Real-Time Statistics derived strictly from real database records with current dynamic dates
   const stats = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
     const totalStudents = students.length;
     const presentInHostel = students.filter((s) => s.hostelStatus === HOSTEL_STATUS.PRESENT).length;
     const currentlyOutside = students.filter((s) => s.hostelStatus === HOSTEL_STATUS.OUTSIDE).length;
@@ -1144,12 +587,11 @@ export function AppProvider({ children }) {
     ).length;
 
     const expectedReturnsToday = leaveRequests.filter(
-      (r) => r.status === LEAVE_STATUS.CHECKED_OUT && (r.expectedReturnDate.includes('2026-11-23') || r.expectedReturnDate.includes('2026-11-24'))
+      (r) => r.status === LEAVE_STATUS.CHECKED_OUT && r.expectedReturnDate === todayStr
     ).length;
 
-    // Overdue students (checked out and expected return is past or today)
     const overdueStudents = leaveRequests.filter(
-      (r) => r.status === LEAVE_STATUS.CHECKED_OUT && r.expectedReturnDate < '2026-11-23'
+      (r) => r.status === LEAVE_STATUS.CHECKED_OUT && r.expectedReturnDate < todayStr
     ).length;
 
     const approvedLeavesToday = leaveRequests.filter(
@@ -1167,118 +609,11 @@ export function AppProvider({ children }) {
     };
   }, [students, leaveRequests]);
 
-  const markRollCall = (studentId, status, session = 'NIGHT_ROLL_CALL', remarks = '') => {
-    setAttendance((prev) => {
-      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const todayDate = new Date().toISOString().split('T')[0];
-      const existingIdx = prev.records.findIndex((r) => r.date === todayDate);
-
-      let updatedRecords = [...prev.records];
-      const newRecord = {
-        id: `att-${Date.now()}`,
-        date: todayDate,
-        status,
-        session,
-        time: nowStr,
-        markedBy: currentUser?.name || 'Warden',
-        remarks: remarks || 'Roll-call verified',
-      };
-
-      if (existingIdx >= 0) {
-        updatedRecords[existingIdx] = newRecord;
-      } else {
-        updatedRecords = [newRecord, ...updatedRecords];
-      }
-
-      const totalDays = updatedRecords.length;
-      const presentDays = updatedRecords.filter((r) => r.status === 'PRESENT').length;
-      const leaveDays = updatedRecords.filter((r) => r.status === 'ON_LEAVE').length;
-      const absentDays = updatedRecords.filter((r) => r.status === 'ABSENT').length;
-      const attendanceRate = totalDays > 0 ? Math.round(((presentDays + leaveDays) / totalDays) * 1000) / 10 : 100;
-
-      return {
-        ...prev,
-        stats: {
-          ...prev.stats,
-          totalDays,
-          presentDays,
-          leaveDays,
-          absentDays,
-          attendanceRate,
-        },
-        today: {
-          status,
-          session,
-          markedAt: nowStr,
-          markedBy: currentUser?.name || 'Warden',
-          date: todayDate,
-          verified: true,
-        },
-        records: updatedRecords,
-      };
-    });
-  };
-
-  const saveBatchRollCall = (rollCallMap, date, session = 'NIGHT_ROLL_CALL') => {
-    const todayDate = date || new Date().toISOString().split('T')[0];
-    const wardenName = currentUser?.name || 'Dr. Vijay K. Singh';
-
-    // Update student STU001 (Aarav Sharma) if present in the rollCallMap
-    if (rollCallMap['STU001']) {
-      const aaravEntry = rollCallMap['STU001'];
-      markRollCall('STU001', aaravEntry.status, session, aaravEntry.remarks);
-    }
-
-    const presentCount = Object.values(rollCallMap).filter((v) => v.status === 'PRESENT').length;
-    const leaveCount = Object.values(rollCallMap).filter((v) => v.status === 'ON_LEAVE').length;
-    const absentCount = Object.values(rollCallMap).filter((v) => v.status === 'ABSENT').length;
-
-    // Log real-time audit Activity
-    const newActivity = {
-      id: `act-${Date.now()}`,
-      title: 'Night Roll-Call Completed',
-      description: `${presentCount} Present, ${leaveCount} On Leave, ${absentCount} Absent. Verified by ${wardenName}.`,
-      timestamp: 'Just now',
-      badgeType: absentCount > 0 ? 'warning' : 'success',
-      status: 'VERIFIED',
-    };
-    setActivities((prev) => [newActivity, ...prev]);
-
-    // Create confirmation Notification
-    const newNotifs = [
-      {
-        id: `notif-${Date.now()}-1`,
-        userId: currentUser?.id,
-        role: 'warden',
-        title: 'Roll-Call Finalized',
-        message: `Roll-call for ${todayDate} (${session}) submitted: ${presentCount} Present, ${absentCount} Absent.`,
-        time: 'Just now',
-        read: false,
-      },
-    ];
-
-    if (absentCount > 0) {
-      newNotifs.push({
-        id: `notif-${Date.now()}-2`,
-        role: 'parent',
-        title: 'Hostel Roll-Call Alert',
-        message: `${absentCount} student(s) marked absent during tonight's roll-call. Inspection advised.`,
-        time: 'Just now',
-        read: false,
-      });
-    }
-
-    setNotifications((prev) => [...newNotifs, ...prev]);
-
-    return { success: true, presentCount, leaveCount, absentCount };
-  };
-
   const value = {
     isLoading,
     currentUser,
     login,
     register,
-    switchDemoRole,
     logout,
     students,
     rooms,
@@ -1292,7 +627,7 @@ export function AppProvider({ children }) {
     attendance,
     markRollCall,
     saveBatchRollCall,
-    // Workflows
+    // Real Workflows
     submitLeaveRequest,
     parentApproveLeave,
     parentRejectLeave,
@@ -1303,18 +638,18 @@ export function AppProvider({ children }) {
     submitLeaveExtension,
     parentApproveExtension,
     parentRejectExtension,
-    // Student & Room management
+    // Real Student & Room management
     updateStudentProfile,
     addStudent,
     deleteStudent,
     allocateRoom,
-    // Guard management
+    // Guard & Notifications
     toggleGuardDuty,
     addGuard,
-    // Notifications
     markNotificationAsRead,
     markAllNotificationsAsRead,
     resetDemoData,
+    fetchBackendData,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -29,8 +29,13 @@ export default function ParentDashboard() {
   const router = useRouter();
   const { currentUser, students, leaveRequests, activities } = useApp();
 
-  const child = students.find((s) => s.id === currentUser?.studentId) || students[0];
-  const childLeaves = leaveRequests.filter((r) => r.studentId === child.id);
+  const child =
+    students.find((s) => s.id === currentUser?.studentId || s._id === currentUser?.studentId) ||
+    currentUser?.child ||
+    null;
+  const childLeaves = child
+    ? leaveRequests.filter((r) => r.studentId === child.id || r.studentId === child._id)
+    : leaveRequests;
 
   const pendingApprovals = childLeaves.filter(
     (r) =>
@@ -45,9 +50,11 @@ export default function ParentDashboard() {
       r.status === LEAVE_STATUS.WARDEN_APPROVED
   );
 
-  const childActivities = activities
-    .filter((a) => a.studentName === child.name || a.enrollmentNo === child.enrollmentNo)
-    .slice(0, 4);
+  const childActivities = child
+    ? activities
+        .filter((a) => a.studentName === child.name || a.enrollmentNo === child.enrollmentNo)
+        .slice(0, 4)
+    : activities.slice(0, 4);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -79,48 +86,59 @@ export default function ParentDashboard() {
             <View style={styles.topGloss} />
             <Text style={styles.parentGreeting}>Logged in as {currentUser?.name || 'Parent'}</Text>
 
-            <View style={styles.childHeaderRow}>
-              <ProfileAvatar
-                uri={child.avatar}
-                name={child.name}
-                size={58}
-                status={child.hostelStatus === HOSTEL_STATUS.PRESENT ? 'present' : 'outside'}
-              />
-              <View style={styles.childTextWrapper}>
-                <Text style={styles.childName}>{child.name}</Text>
-                <Text style={styles.childEnrollment}>
-                  {child.enrollmentNo} • {child.deptCode || 'CSE'}
-                </Text>
-                <Text style={styles.childRoom}>
-                  Room {child.roomNo} ({child.block || 'Block A'})
+            {child ? (
+              <>
+                <View style={styles.childHeaderRow}>
+                  <ProfileAvatar
+                    uri={child.avatar}
+                    name={child.name}
+                    size={58}
+                    status={child.hostelStatus === HOSTEL_STATUS.PRESENT ? 'present' : 'outside'}
+                  />
+                  <View style={styles.childTextWrapper}>
+                    <Text style={styles.childName}>{child.name}</Text>
+                    <Text style={styles.childEnrollment}>
+                      {child.enrollmentNo} • {child.deptCode || 'CSE'}
+                    </Text>
+                    <Text style={styles.childRoom}>
+                      Room {child.roomNo} ({child.block || 'Block A'})
+                    </Text>
+                  </View>
+                </View>
+
+                <LinearGradient
+                  colors={['rgba(240, 246, 255, 0.9)', 'rgba(230, 240, 255, 0.7)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.childStatusRow}
+                >
+                  <View style={styles.statusCol}>
+                    <Text style={styles.statusColLabel}>CURRENT HOSTEL STATUS</Text>
+                    <StatusBadge
+                      status={child.hostelStatus}
+                      isHostelStatus={true}
+                      size="small"
+                    />
+                  </View>
+
+                  <View style={styles.statusDivider} />
+
+                  <View style={styles.statusCol}>
+                    <Text style={styles.statusColLabel}>ACTIVE PASS</Text>
+                    <Text style={styles.activePassText}>
+                      {activeLeave ? activeLeave.reason : 'No Active Pass'}
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </>
+            ) : (
+              <View style={{ paddingVertical: 14 }}>
+                <Text style={styles.childName}>No Student Record Linked</Text>
+                <Text style={[styles.childEnrollment, { marginTop: 4 }]}>
+                  Your registered student will automatically link here once enrolled.
                 </Text>
               </View>
-            </View>
-
-            <LinearGradient
-              colors={['rgba(240, 246, 255, 0.9)', 'rgba(230, 240, 255, 0.7)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.childStatusRow}
-            >
-              <View style={styles.statusCol}>
-                <Text style={styles.statusColLabel}>CURRENT HOSTEL STATUS</Text>
-                <StatusBadge
-                  status={child.hostelStatus}
-                  isHostelStatus={true}
-                  size="small"
-                />
-              </View>
-
-              <View style={styles.statusDivider} />
-
-              <View style={styles.statusCol}>
-                <Text style={styles.statusColLabel}>ACTIVE PASS</Text>
-                <Text style={styles.activePassText}>
-                  {activeLeave ? activeLeave.reason : 'No Active Pass'}
-                </Text>
-              </View>
-            </LinearGradient>
+            )}
           </LinearGradient>
         </View>
 

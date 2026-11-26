@@ -31,7 +31,10 @@ export default function ParentApprovals() {
     parentRejectExtension,
   } = useApp();
 
-  const child = students.find((s) => s.id === currentUser?.studentId) || students[0];
+  const child =
+    students.find((s) => s.id === currentUser?.studentId || s._id === currentUser?.studentId) ||
+    currentUser?.child ||
+    null;
 
   // Active tab: 'leaves' | 'extensions'
   const [activeTab, setActiveTab] = useState('leaves');
@@ -39,14 +42,14 @@ export default function ParentApprovals() {
   // Pending regular leaves
   const pendingLeaves = leaveRequests.filter(
     (r) =>
-      r.studentId === child.id &&
+      (!child || r.studentId === child.id || r.studentId === child._id) &&
       r.status === LEAVE_STATUS.PENDING_PARENT_APPROVAL
   );
 
   // Pending extensions
   const pendingExtensions = leaveRequests.filter(
     (r) =>
-      r.studentId === child.id &&
+      (!child || r.studentId === child.id || r.studentId === child._id) &&
       r.status === LEAVE_STATUS.EXTENSION_PENDING
   );
 
@@ -106,7 +109,7 @@ export default function ParentApprovals() {
     <SafeAreaView style={styles.safeArea}>
       <AppHeader
         title="Leave Approvals"
-        subtitle={`Parent Verification for ${child.name}`}
+        subtitle={child ? `Parent Verification for ${child.name}` : 'Parent Verification'}
         showBack={true}
         onBack={() => router.back()}
       />

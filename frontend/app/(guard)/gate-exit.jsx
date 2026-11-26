@@ -40,7 +40,7 @@ export default function GuardGateExit() {
 
   const handleConfirmExit = () => {
     if (activeRequest) {
-      recordGateExit(activeRequest.id, currentUser?.name || 'Balwant Singh');
+      recordGateExit(activeRequest.id, currentUser?.name || 'Security Guard');
       setShowConfirmModal(false);
       setShowSuccessModal(true);
     }

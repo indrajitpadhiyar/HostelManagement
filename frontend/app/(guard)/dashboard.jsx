@@ -53,7 +53,7 @@ export default function GuardDashboard() {
 
       <AppHeader
         title="Gate Security Terminal"
-        subtitle={`${currentUser?.gateNumber || 'Main Gate 1'} • ${currentUser?.name || 'Balwant Singh'}`}
+        subtitle={`${currentUser?.gateNumber || 'Main Gate 1'} • ${currentUser?.name || 'Security Guard'}`}
         showLogout={true}
         notificationRoute="/(guard)/notifications"
       />

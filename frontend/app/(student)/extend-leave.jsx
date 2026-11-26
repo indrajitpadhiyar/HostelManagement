@@ -15,6 +15,7 @@ import CustomInput from '../../components/forms/CustomInput';
 import DatePickerModal from '../../components/forms/DatePickerModal';
 import ConfirmationModal from '../../components/modals/ConfirmationModal';
 import SuccessModal from '../../components/modals/SuccessModal';
+import EmptyState from '../../components/common/EmptyState';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import { Calendar, Clock, AlertCircle } from 'lucide-react-native';
 
@@ -23,18 +24,32 @@ export default function ExtendLeave() {
   const { id } = useLocalSearchParams();
   const { leaveRequests, submitLeaveExtension } = useApp();
 
-  const request = leaveRequests.find((r) => r.id === id) || leaveRequests[0];
+  const request = leaveRequests.find((r) => r.id === id || r._id === id);
 
-  const [newReturnDate, setNewReturnDate] = useState('2026-11-30');
-  const [extensionReason, setExtensionReason] = useState(
-    'Medical rest advised for 2 more days'
-  );
+  const [newReturnDate, setNewReturnDate] = useState('');
+  const [extensionReason, setExtensionReason] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [error, setError] = useState('');
 
-  if (!request) return null;
+  if (!request) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <AppHeader
+          title="Extend Leave"
+          showBack={true}
+          onBack={() => router.replace('/(student)/leave-history')}
+        />
+        <View style={{ flex: 1, padding: 20 }}>
+          <EmptyState
+            title="Leave Pass Not Found"
+            description="The requested leave pass does not exist or is no longer active."
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const handleValidateAndConfirm = () => {
     if (!newReturnDate) {

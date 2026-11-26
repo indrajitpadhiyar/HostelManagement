@@ -50,18 +50,6 @@ export default function GuardVerifyStudent() {
     });
   };
 
-  const handleSimulateScan = () => {
-    // Pick student with approved pass if available, or first hostel student
-    const demoReq = leaveRequests.find(
-      (r) => r.status === LEAVE_STATUS.PARENT_APPROVED || r.status === LEAVE_STATUS.WARDEN_APPROVED
-    );
-    const stu = demoReq ? students.find((s) => s.id === demoReq.studentId) : students[0];
-    if (stu) {
-      setSearchRoll(stu.enrollmentNo);
-      handleSelectStudent(stu);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <AppHeader
@@ -91,15 +79,6 @@ export default function GuardVerifyStudent() {
               Align Digital Pass QR Code inside frame
             </Text>
           </View>
-
-          <TouchableOpacity
-            style={styles.simulateScanBtn}
-            onPress={handleSimulateScan}
-            activeOpacity={0.8}
-          >
-            <ShieldCheck size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.simulateScanText}>Simulate Instant QR Scan</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Manual Roll Number Search Section */}

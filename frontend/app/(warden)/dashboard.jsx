@@ -40,8 +40,9 @@ export default function WardenDashboard() {
     (r) => r.status === LEAVE_STATUS.PARENT_APPROVED
   );
 
+  const todayStr = new Date().toISOString().split('T')[0];
   const overdueList = leaveRequests.filter(
-    (r) => r.status === LEAVE_STATUS.CHECKED_OUT && r.expectedReturnDate < '2026-11-23'
+    (r) => r.status === LEAVE_STATUS.CHECKED_OUT && r.expectedReturnDate < todayStr
   );
 
   const recentActivities = activities.slice(0, 4);
@@ -55,7 +56,7 @@ export default function WardenDashboard() {
 
       <AppHeader
         title="HostelEase"
-        subtitle={`Chief Warden Admin • ${currentUser?.name || 'Dr. Upadhyay'}`}
+        subtitle={`Chief Warden Admin • ${currentUser?.name || 'Chief Warden'}`}
         showLogout={true}
         notificationRoute="/(warden)/notifications"
       />

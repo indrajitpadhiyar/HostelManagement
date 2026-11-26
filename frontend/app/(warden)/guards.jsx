@@ -17,6 +17,7 @@ import PrimaryButton from '../../components/common/PrimaryButton';
 import SecondaryButton from '../../components/common/SecondaryButton';
 import ProfileAvatar from '../../components/common/ProfileAvatar';
 import SuccessModal from '../../components/modals/SuccessModal';
+import EmptyState from '../../components/common/EmptyState';
 import RoleTabBar from '../../components/navigation/RoleTabBar';
 import { Shield, Phone, Clock, UserCheck, Plus, Check } from 'lucide-react-native';
 
@@ -71,57 +72,66 @@ export default function WardenGuards() {
       >
         <Text style={styles.sectionHeading}>ACTIVE GATE PERSONNEL</Text>
 
-        {guards.map((guard) => {
-          const isOnDuty = guard.status === 'ON_DUTY';
+        {guards.length > 0 ? (
+          guards.map((guard) => {
+            const isOnDuty = guard.status === 'ON_DUTY';
 
-          return (
-            <View key={guard.id} style={styles.guardCard}>
-              <View style={styles.guardTopRow}>
-                <ProfileAvatar
-                  uri={guard.avatar}
-                  name={guard.name}
-                  size={50}
-                  status={isOnDuty ? 'online' : null}
-                />
-                <View style={styles.guardText}>
-                  <Text style={styles.guardName}>{guard.name}</Text>
-                  <Text style={styles.gateText}>
-                    {guard.gateNumber} • {guard.id}
-                  </Text>
-                </View>
+            return (
+              <View key={guard.id} style={styles.guardCard}>
+                <View style={styles.guardTopRow}>
+                  <ProfileAvatar
+                    uri={guard.avatar}
+                    name={guard.name}
+                    size={50}
+                    status={isOnDuty ? 'online' : null}
+                  />
+                  <View style={styles.guardText}>
+                    <Text style={styles.guardName}>{guard.name}</Text>
+                    <Text style={styles.gateText}>
+                      {guard.gateNumber} • {guard.id}
+                    </Text>
+                  </View>
 
-                <TouchableOpacity
-                  style={[
-                    styles.dutyToggle,
-                    isOnDuty ? styles.dutyOn : styles.dutyOff,
-                  ]}
-                  onPress={() => toggleGuardDuty(guard.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text
+                  <TouchableOpacity
                     style={[
-                      styles.dutyText,
-                      isOnDuty ? { color: COLORS.successDark } : { color: COLORS.textMuted },
+                      styles.dutyToggle,
+                      isOnDuty ? styles.dutyOn : styles.dutyOff,
                     ]}
+                    onPress={() => toggleGuardDuty(guard.id)}
+                    activeOpacity={0.7}
                   >
-                    {isOnDuty ? 'ON DUTY' : 'OFF DUTY'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                    <Text
+                      style={[
+                        styles.dutyText,
+                        isOnDuty ? { color: COLORS.successDark } : { color: COLORS.textMuted },
+                      ]}
+                    >
+                      {isOnDuty ? 'ON DUTY' : 'OFF DUTY'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
-              <View style={styles.guardDetails}>
-                <View style={styles.detailRow}>
-                  <Clock size={14} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
-                  <Text style={styles.detailText}>{guard.shift}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Phone size={14} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
-                  <Text style={styles.detailText}>{guard.mobile}</Text>
+                <View style={styles.guardDetails}>
+                  <View style={styles.detailRow}>
+                    <Clock size={14} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={styles.detailText}>{guard.shift}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Phone size={14} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={styles.detailText}>{guard.mobile}</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })
+        ) : (
+          <EmptyState
+            title="No Guards Registered"
+            description="No gate personnel records currently registered in the database."
+            actionTitle="Add Guard"
+            onActionPress={() => setShowAddModal(true)}
+          />
+        )}
       </ScrollView>
 
       {/* Add Guard Modal */}

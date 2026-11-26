@@ -209,6 +209,48 @@ class ApiClient {
     return res.data;
   }
 
+  async createStudent(payload) {
+    const res = await this.request('/students', {
+      method: 'POST',
+      body: payload,
+    });
+    return res.data;
+  }
+
+  async deleteStudent(studentId) {
+    const res = await this.request(`/students/${studentId}`, {
+      method: 'DELETE',
+    });
+    return res.data;
+  }
+
+  async reallocateRoom(studentId, newRoomNo) {
+    const res = await this.request(`/students/${studentId}/reallocate`, {
+      method: 'POST',
+      body: { newRoomNo },
+    });
+    return res.data;
+  }
+
+  async createRoom(payload) {
+    const res = await this.request('/rooms', {
+      method: 'POST',
+      body: payload,
+    });
+    return res.data;
+  }
+
+  async getGuardDashboard() {
+    const res = await this.request('/guard/dashboard');
+    return res.data;
+  }
+
+  async getGuardHistory(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    const res = await this.request(`/guard/gate-history${query ? `?${query}` : ''}`);
+    return res.data;
+  }
+
   async getNotifications() {
     const res = await this.request('/notifications');
     return res.data;

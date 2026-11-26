@@ -37,11 +37,12 @@ export default function GuardGateReturn() {
   const activeStudent = students.find((s) => s.id === activeRequest?.studentId);
 
   // Check if late return (overdue)
-  const isLate = activeRequest && activeRequest.expectedReturnDate < '2026-11-23';
+  const todayDateStr = new Date().toISOString().split('T')[0];
+  const isLate = activeRequest && activeRequest.expectedReturnDate < todayDateStr;
 
   const handleConfirmReturn = () => {
     if (activeRequest) {
-      recordGateReturn(activeRequest.id, currentUser?.name || 'Balwant Singh');
+      recordGateReturn(activeRequest.id, currentUser?.name || 'Security Guard');
       setShowConfirmModal(false);
       setShowSuccessModal(true);
     }

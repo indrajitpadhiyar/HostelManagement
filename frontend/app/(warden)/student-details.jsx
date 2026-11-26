@@ -15,6 +15,7 @@ import AppHeader from '../../components/common/AppHeader';
 import ProfileAvatar from '../../components/common/ProfileAvatar';
 import StatusBadge from '../../components/common/StatusBadge';
 import LeaveRequestCard from '../../components/cards/LeaveRequestCard';
+import EmptyState from '../../components/common/EmptyState';
 import ConfirmationModal from '../../components/modals/ConfirmationModal';
 import {
   Home,
@@ -32,8 +33,8 @@ export default function WardenStudentDetails() {
   const { id } = useLocalSearchParams();
   const { students, leaveRequests, deleteStudent } = useApp();
 
-  const student = students.find((s) => s.id === id) || students[0];
-  const studentLeaves = leaveRequests.filter((r) => r.studentId === student.id);
+  const student = students.find((s) => s.id === id || s._id === id);
+  const studentLeaves = student ? leaveRequests.filter((r) => r.studentId === student.id || r.studentId === student._id) : [];
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -42,10 +43,31 @@ export default function WardenStudentDetails() {
   };
 
   const handleDelete = () => {
-    deleteStudent(student.id);
-    setShowDeleteModal(false);
-    router.replace('/(warden)/students');
+    if (student) {
+      deleteStudent(student.id);
+      setShowDeleteModal(false);
+      router.replace('/(warden)/students');
+    }
   };
+
+  if (!student) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <AppHeader
+          title="Student Record"
+          subtitle="Not Found"
+          showBack={true}
+          onBack={() => router.replace('/(warden)/students')}
+        />
+        <View style={{ flex: 1, padding: 20 }}>
+          <EmptyState
+            title="Student Record Not Found"
+            description="The requested student does not exist in the hostel database."
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>

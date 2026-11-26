@@ -203,8 +203,8 @@ export default function WardenStudents() {
           ))
         ) : (
           <EmptyState
-            title="No Students Found"
-            description="No student records matching your current filter criteria."
+            title={students.length === 0 ? "No Students Registered" : "No Students Found"}
+            description={students.length === 0 ? "No students registered yet in the database. Tap Add New Student to register a hosteller." : "No student records matching your current filter criteria."}
             actionTitle="Add New Student"
             onActionPress={handleOpenAdd}
           />

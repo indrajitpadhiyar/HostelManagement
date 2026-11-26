@@ -136,12 +136,14 @@ export const createStudent = asyncHandler(async (req, res) => {
     mobile,
     parentName,
     parentMobile,
-    password = 'demo123',
+    password,
   } = req.body;
 
   if (!name || !enrollmentNo || !roomNo) {
     throw ApiError.badRequest('Name, Enrollment number, and Room number are required.');
   }
+
+  const generatedPass = password || `Student@${enrollmentNo.toUpperCase().trim()}`;
 
   // Check if enrollment exists
   const existingEnrollment = await Student.findOne({ enrollmentNo: enrollmentNo.toUpperCase() });
@@ -161,7 +163,7 @@ export const createStudent = asyncHandler(async (req, res) => {
   const user = await User.create({
     name,
     email: studentEmail,
-    password,
+    password: generatedPass,
     role: 'student',
     mobile: mobile || '',
   });

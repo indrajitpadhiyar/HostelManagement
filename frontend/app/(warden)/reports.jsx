@@ -35,8 +35,9 @@ export default function WardenReports() {
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [exportFormat, setExportFormat] = useState('PDF'); // 'PDF' | 'CSV'
 
+  const todayStr = new Date().toISOString().split('T')[0];
   const overdueList = leaveRequests.filter(
-    (r) => r.status === LEAVE_STATUS.CHECKED_OUT && r.expectedReturnDate < '2026-11-23'
+    (r) => r.status === LEAVE_STATUS.CHECKED_OUT && r.expectedReturnDate < todayStr
   );
 
   const handleExportTrigger = (format) => {

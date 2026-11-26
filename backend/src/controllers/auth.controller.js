@@ -1,11 +1,13 @@
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Guard from '../models/Guard.js';
+import Notification from '../models/Notification.js';
+import Activity from '../models/Activity.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import ApiError from '../utils/apiError.js';
 import ApiResponse from '../utils/apiResponse.js';
 import { generateToken } from '../utils/token.utils.js';
-import { ROLES } from '../config/constants.js';
+import { ROLES, NOTIFICATION_TYPES, HOSTEL_STATUS } from '../config/constants.js';
 
 /**
  * Helper to build rich user profile response
@@ -33,24 +35,33 @@ const buildUserProfile = async (user) => {
       profile.hostelStatus = student.hostelStatus;
       profile.parentName = student.parentName;
       profile.parentMobile = student.parentMobile;
+      profile.parentEmail = student.parentEmail;
     }
   } else if (user.role === ROLES.PARENT) {
     // Find linked child
-    const child = await Student.findOne({ parentEmail: user.email });
+    const child = await Student.findOne({
+      $or: [
+        { parentUserId: user._id },
+        { parentEmail: user.email },
+        ...(user.mobile ? [{ parentMobile: user.mobile }] : []),
+      ],
+    });
     if (child) {
       profile.child = {
         id: child._id,
-        name: child.parentName ? 'Aarav Sharma' : 'Student',
+        name: child.name || 'Student',
         enrollmentNo: child.enrollmentNo,
         roomNo: child.roomNo,
         department: child.department,
         semester: child.semester,
         hostelStatus: child.hostelStatus,
       };
+      profile.studentId = child._id;
+      profile.studentName = child.name;
     }
   } else if (user.role === ROLES.WARDEN) {
-    profile.block = user.metadata?.block || 'Block A & B (Chief Warden)';
-    profile.office = user.metadata?.office || 'Admin Wing, Ground Floor';
+    profile.block = user.metadata?.block || 'Chief Warden';
+    profile.office = user.metadata?.office || 'Admin Wing';
   } else if (user.role === ROLES.GUARD) {
     const guard = await Guard.findOne({ userId: user._id });
     profile.gateNumber = guard?.gateNumber || 'Main Gate 1';
@@ -62,7 +73,7 @@ const buildUserProfile = async (user) => {
 };
 
 /**
- * @desc    Login with Email or Mobile & Password
+ * @desc    Login with Email, Mobile or Enrollment No & Password
  * @route   POST /api/v1/auth/login
  * @access  Public
  */
@@ -70,34 +81,32 @@ export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    throw ApiError.badRequest('Please provide both email/mobile and password.');
+    throw ApiError.badRequest('Please provide your login identifier and password.');
   }
 
   const query = email.trim().toLowerCase();
 
-  // Support login by email OR mobile OR demo shortcut (e.g. 'student', 'warden')
-  let user;
-  if (query === 'student') {
-    user = await User.findOne({ email: 'student@hosteleasy.demo' }).select('+password');
-  } else if (query === 'parent') {
-    user = await User.findOne({ email: 'parent@hosteleasy.demo' }).select('+password');
-  } else if (query === 'warden') {
-    user = await User.findOne({ email: 'warden@hosteleasy.demo' }).select('+password');
-  } else if (query === 'guard') {
-    user = await User.findOne({ email: 'guard@hosteleasy.demo' }).select('+password');
-  } else {
-    user = await User.findOne({
-      $or: [{ email: query }, { mobile: query }],
-    }).select('+password');
+  let user = await User.findOne({
+    $or: [{ email: query }, { mobile: query }],
+  }).select('+password');
+
+  // If not found by email or mobile, check if student enrollment number was entered
+  if (!user) {
+    const student = await Student.findOne({
+      enrollmentNo: query.toUpperCase(),
+    });
+    if (student && student.userId) {
+      user = await User.findById(student.userId).select('+password');
+    }
   }
 
   if (!user) {
     throw ApiError.unauthorized('Invalid email or password.');
   }
 
-  // Validate password
+  // Validate password strictly via bcrypt
   const isMatch = await user.comparePassword(password);
-  if (!isMatch && password !== 'demo123') {
+  if (!isMatch) {
     throw ApiError.unauthorized('Invalid email or password.');
   }
 
@@ -134,39 +143,6 @@ export const getMe = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    1-Tap Quick Demo Role Switcher
- * @route   POST /api/v1/auth/switch-demo
- * @access  Public
- */
-export const switchDemoRole = asyncHandler(async (req, res) => {
-  const { role } = req.body;
-
-  if (!Object.values(ROLES).includes(role)) {
-    throw ApiError.badRequest(`Invalid demo role. Allowed: ${Object.values(ROLES).join(', ')}`);
-  }
-
-  const email = `${role}@hosteleasy.demo`;
-  let user = await User.findOne({ email }).select('+password');
-
-  if (!user) {
-    throw ApiError.notFound(`Demo account for role [${role}] not found. Please run seed script.`);
-  }
-
-  const token = generateToken({ id: user._id, role: user.role });
-  const userProfile = await buildUserProfile(user);
-
-  res.status(200).json(
-    ApiResponse.success(
-      {
-        user: userProfile,
-        token,
-      },
-      `Switched to demo role: ${role}`
-    )
-  );
-});
-
-/**
  * @desc    Logout (Client token revocation / audit log)
  * @route   POST /api/v1/auth/logout
  * @access  Private
@@ -181,48 +157,144 @@ export const logout = asyncHandler(async (req, res) => {
  * @access  Public
  */
 export const register = asyncHandler(async (req, res) => {
-  const { name, email, password, role, mobile, enrollmentNo, roomNo, department, block, gateNumber } = req.body;
+  const {
+    name,
+    email,
+    password,
+    role,
+    mobile,
+    enrollmentNo,
+    roomNo,
+    department,
+    block,
+    gateNumber,
+    parentName,
+    parentMobile,
+    parentEmail,
+  } = req.body;
 
   if (!name || !email || !password || !role) {
-    throw new ApiError(400, 'Name, email, password, and role are required');
+    throw ApiError.badRequest('Name, email, password, and role are required.');
   }
 
-  const existing = await User.findOne({ email: email.toLowerCase().trim() });
+  const cleanEmail = email.toLowerCase().trim();
+
+  const existing = await User.findOne({ email: cleanEmail });
   if (existing) {
-    throw new ApiError(409, 'An account with this email address already exists');
+    throw ApiError.conflict('An account with this email address already exists.');
   }
 
   const user = await User.create({
     name: name.trim(),
-    email: email.toLowerCase().trim(),
+    email: cleanEmail,
     password,
     role,
-    mobile: mobile || '',
+    mobile: (mobile || '').trim(),
+    status: 'active',
   });
 
-  // Create linked document for specialized roles
+  // Specialized role persistence in MongoDB
   if (role === ROLES.STUDENT) {
-    await Student.create({
+    const cleanEnrollment = (enrollmentNo || `EN${Date.now().toString().slice(-6)}`).toUpperCase().trim();
+
+    // Check duplicate enrollment
+    const existingEnrollment = await Student.findOne({ enrollmentNo: cleanEnrollment });
+    if (existingEnrollment) {
+      throw ApiError.conflict(`Enrollment number ${cleanEnrollment} is already registered.`);
+    }
+
+    let linkedParentUser = null;
+
+    // Dynamically generate parent credentials & account if parent email provided
+    if (parentEmail && parentEmail.trim()) {
+      const cleanParentEmail = parentEmail.toLowerCase().trim();
+      linkedParentUser = await User.findOne({ email: cleanParentEmail });
+
+      if (!linkedParentUser) {
+        // Dynamically create real Parent account in MongoDB
+        const generatedParentPass = `Parent@${cleanEnrollment}`;
+        linkedParentUser = await User.create({
+          name: (parentName || 'Parent / Guardian').trim(),
+          email: cleanParentEmail,
+          password: generatedParentPass,
+          role: ROLES.PARENT,
+          mobile: (parentMobile || '').trim(),
+          status: 'active',
+          metadata: {
+            tempCredentials: true,
+            defaultPassword: generatedParentPass,
+            studentEnrollment: cleanEnrollment,
+          },
+        });
+      }
+    }
+
+    const studentRecord = await Student.create({
       userId: user._id,
-      enrollmentNo: enrollmentNo || `EN${Date.now().toString().slice(-6)}`,
-      name: user.name,
-      email: user.email,
-      phone: user.mobile,
-      roomNo: roomNo || 'A-101',
-      block: block || 'Block A',
-      department: department || 'Computer Science & Engineering',
+      enrollmentNo: cleanEnrollment,
+      roomNo: (roomNo || 'Unassigned').trim(),
+      block: (block || 'Block A').trim(),
+      department: (department || 'Engineering').trim(),
+      hostelStatus: HOSTEL_STATUS.PRESENT,
+      parentName: (parentName || '').trim(),
+      parentEmail: (parentEmail || '').toLowerCase().trim(),
+      parentMobile: (parentMobile || '').trim(),
+      parentUserId: linkedParentUser ? linkedParentUser._id : null,
     });
+
+    // Create real Warden Notification in MongoDB for real student registration event
+    await Notification.create({
+      userId: null,
+      role: ROLES.WARDEN,
+      title: 'New Student Registration',
+      message: `${user.name} (${cleanEnrollment}) registered on the portal. Room: ${studentRecord.roomNo}.`,
+      type: NOTIFICATION_TYPES.SYSTEM,
+      time: 'Just now',
+    });
+
+    // Create real Activity audit entry in MongoDB
+    await Activity.create({
+      studentName: user.name,
+      enrollmentNo: cleanEnrollment,
+      roomNo: studentRecord.roomNo,
+      type: 'ROOM_REALLOCATED',
+      title: 'Student Registration',
+      description: `${user.name} registered on the hostel system.`,
+      badgeType: 'info',
+      status: 'INFO',
+    });
+  } else if (role === ROLES.PARENT) {
+    // If student enrollment or email was provided, link to Student
+    if (enrollmentNo) {
+      const cleanEnrollment = enrollmentNo.toUpperCase().trim();
+      const student = await Student.findOne({ enrollmentNo: cleanEnrollment });
+      if (student) {
+        student.parentUserId = user._id;
+        if (!student.parentName) student.parentName = user.name;
+        if (!student.parentEmail) student.parentEmail = user.email;
+        if (!student.parentMobile && user.mobile) student.parentMobile = user.mobile;
+        await student.save();
+      }
+    }
   } else if (role === ROLES.GUARD) {
     await Guard.create({
       userId: user._id,
       guardId: `GRD-${Date.now().toString().slice(-4)}`,
       name: user.name,
       mobile: user.mobile,
-      gateNumber: gateNumber || 'Main Gate 1',
+      gateNumber: (gateNumber || 'Main Gate 1').trim(),
+      shift: 'Day Shift (06:00 AM - 02:00 PM)',
+      onDuty: true,
     });
+  } else if (role === ROLES.WARDEN) {
+    user.metadata = {
+      block: block || 'Block A & B (Chief Warden)',
+      office: 'Admin Wing, Ground Floor',
+    };
+    await user.save({ validateBeforeSave: false });
   }
 
-  const token = generateToken(user._id);
+  const token = generateToken({ id: user._id, role: user.role });
   const userProfile = await buildUserProfile(user);
 
   res.status(201).json(

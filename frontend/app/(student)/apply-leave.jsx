@@ -35,7 +35,10 @@ export default function ApplyLeave() {
   const router = useRouter();
   const { currentUser, students, submitLeaveRequest } = useApp();
 
-  const student = students.find((s) => s.id === currentUser?.id) || students[0];
+  const student =
+    students.find((s) => s.id === currentUser?.id || s.id === currentUser?.studentId) ||
+    currentUser ||
+    {};
 
   // Multi-step progress (1: Student Info, 2: Leave Info, 3: Review)
   const [currentStep, setCurrentStep] = useState(1);

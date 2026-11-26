@@ -1,26 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { INITIAL_STUDENTS } from '../data/students';
-import { INITIAL_PARENTS } from '../data/parents';
-import { INITIAL_WARDENS } from '../data/wardens';
-import { INITIAL_GUARDS } from '../data/guards';
-import { INITIAL_ROOMS } from '../data/rooms';
-import { INITIAL_LEAVE_REQUESTS } from '../data/leaveRequests';
-import { INITIAL_ACTIVITIES } from '../data/activities';
-import { INITIAL_NOTIFICATIONS } from '../data/notifications';
-import { INITIAL_ATTENDANCE } from '../data/attendance';
 
 const STORAGE_KEYS = {
-  USER_SESSION: '@hosteleasy_session_v2',
-  STUDENTS: '@hosteleasy_students_v2',
-  ROOMS: '@hosteleasy_rooms_v2',
-  LEAVES: '@hosteleasy_leaves_v2',
-  ACTIVITIES: '@hosteleasy_activities_v2',
-  NOTIFICATIONS: '@hosteleasy_notifications_v2',
-  GUARDS: '@hosteleasy_guards_v2',
-  ATTENDANCE: '@hosteleasy_attendance_v2',
+  USER_SESSION: '@hosteleasy_session_v3',
+  STUDENTS: '@hosteleasy_students_v3',
+  ROOMS: '@hosteleasy_rooms_v3',
+  LEAVES: '@hosteleasy_leaves_v3',
+  ACTIVITIES: '@hosteleasy_activities_v3',
+  NOTIFICATIONS: '@hosteleasy_notifications_v3',
+  GUARDS: '@hosteleasy_guards_v3',
+  ATTENDANCE: '@hosteleasy_attendance_v3',
 };
 
-// Legacy keys to flush out obsolete dummy data
+// Legacy keys to purge obsolete dummy/demo data from device storage
 const LEGACY_STORAGE_KEYS = [
   '@hosteleasy_session_v1',
   '@hosteleasy_students_v1',
@@ -30,6 +21,14 @@ const LEGACY_STORAGE_KEYS = [
   '@hosteleasy_notifications_v1',
   '@hosteleasy_guards_v1',
   '@hosteleasy_attendance_v1',
+  '@hosteleasy_session_v2',
+  '@hosteleasy_students_v2',
+  '@hosteleasy_rooms_v2',
+  '@hosteleasy_leaves_v2',
+  '@hosteleasy_activities_v2',
+  '@hosteleasy_notifications_v2',
+  '@hosteleasy_guards_v2',
+  '@hosteleasy_attendance_v2',
 ];
 
 export const MockDataService = {
@@ -60,7 +59,7 @@ export const MockDataService = {
 
   async loadInitialData() {
     try {
-      // Purge legacy v1 mock cache if present
+      // Purge legacy mock cache
       await AsyncStorage.multiRemove(LEGACY_STORAGE_KEYS).catch(() => {});
 
       const [storedStudents, storedRooms, storedLeaves, storedActivities, storedNotifs, storedGuards, storedAttendance] =
@@ -75,67 +74,56 @@ export const MockDataService = {
         ]);
 
       return {
-        students: storedStudents ? JSON.parse(storedStudents) : INITIAL_STUDENTS,
-        rooms: storedRooms ? JSON.parse(storedRooms) : INITIAL_ROOMS,
-        leaveRequests: storedLeaves ? JSON.parse(storedLeaves) : INITIAL_LEAVE_REQUESTS,
-        activities: storedActivities ? JSON.parse(storedActivities) : INITIAL_ACTIVITIES,
-        notifications: storedNotifs ? JSON.parse(storedNotifs) : INITIAL_NOTIFICATIONS,
-        guards: storedGuards ? JSON.parse(storedGuards) : INITIAL_GUARDS,
-        attendance: storedAttendance ? JSON.parse(storedAttendance) : INITIAL_ATTENDANCE,
-        parents: INITIAL_PARENTS,
-        wardens: INITIAL_WARDENS,
+        students: storedStudents ? JSON.parse(storedStudents) : [],
+        rooms: storedRooms ? JSON.parse(storedRooms) : [],
+        leaveRequests: storedLeaves ? JSON.parse(storedLeaves) : [],
+        activities: storedActivities ? JSON.parse(storedActivities) : [],
+        notifications: storedNotifs ? JSON.parse(storedNotifs) : [],
+        guards: storedGuards ? JSON.parse(storedGuards) : [],
+        attendance: storedAttendance ? JSON.parse(storedAttendance) : { date: '', records: [], stats: { total: 0, present: 0, absent: 0, onLeave: 0 } },
+        parents: [],
+        wardens: [],
       };
     } catch {
       return {
-        students: INITIAL_STUDENTS,
-        rooms: INITIAL_ROOMS,
-        leaveRequests: INITIAL_LEAVE_REQUESTS,
-        activities: INITIAL_ACTIVITIES,
-        notifications: INITIAL_NOTIFICATIONS,
-        guards: INITIAL_GUARDS,
-        attendance: INITIAL_ATTENDANCE,
-        parents: INITIAL_PARENTS,
-        wardens: INITIAL_WARDENS,
+        students: [],
+        rooms: [],
+        leaveRequests: [],
+        activities: [],
+        notifications: [],
+        guards: [],
+        attendance: { date: '', records: [], stats: { total: 0, present: 0, absent: 0, onLeave: 0 } },
+        parents: [],
+        wardens: [],
       };
     }
   },
 
-  async persistData({ students, rooms, leaveRequests, activities, notifications, guards, attendance }) {
+  async persistData(data) {
     try {
-      await Promise.all([
-        AsyncStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students)),
-        AsyncStorage.setItem(STORAGE_KEYS.ROOMS, JSON.stringify(rooms)),
-        AsyncStorage.setItem(STORAGE_KEYS.LEAVES, JSON.stringify(leaveRequests)),
-        AsyncStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities)),
-        AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications)),
-        guards ? AsyncStorage.setItem(STORAGE_KEYS.GUARDS, JSON.stringify(guards)) : Promise.resolve(),
-        attendance ? AsyncStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(attendance)) : Promise.resolve(),
-      ]);
+      const pairs = [
+        [STORAGE_KEYS.STUDENTS, JSON.stringify(data.students || [])],
+        [STORAGE_KEYS.ROOMS, JSON.stringify(data.rooms || [])],
+        [STORAGE_KEYS.LEAVES, JSON.stringify(data.leaveRequests || [])],
+        [STORAGE_KEYS.ACTIVITIES, JSON.stringify(data.activities || [])],
+        [STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(data.notifications || [])],
+        [STORAGE_KEYS.GUARDS, JSON.stringify(data.guards || [])],
+      ];
+      if (data.attendance) {
+        pairs.push([STORAGE_KEYS.ATTENDANCE, JSON.stringify(data.attendance)]);
+      }
+      await AsyncStorage.multiSet(pairs);
     } catch (e) {
-      console.warn('Error persisting data to storage:', e);
+      console.warn('Failed to persist cache:', e);
     }
   },
 
-  async resetToDefaults() {
+  async clearAll() {
     try {
-      await AsyncStorage.multiRemove([
-        STORAGE_KEYS.STUDENTS,
-        STORAGE_KEYS.ROOMS,
-        STORAGE_KEYS.LEAVES,
-        STORAGE_KEYS.ACTIVITIES,
-        STORAGE_KEYS.NOTIFICATIONS,
-        STORAGE_KEYS.GUARDS,
-      ]);
-      return {
-        students: INITIAL_STUDENTS,
-        rooms: INITIAL_ROOMS,
-        leaveRequests: INITIAL_LEAVE_REQUESTS,
-        activities: INITIAL_ACTIVITIES,
-        notifications: INITIAL_NOTIFICATIONS,
-        guards: INITIAL_GUARDS,
-      };
-    } catch {
-      return null;
+      await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
+      await AsyncStorage.multiRemove(LEGACY_STORAGE_KEYS);
+    } catch (e) {
+      console.warn('Failed to clear cache:', e);
     }
   },
 };

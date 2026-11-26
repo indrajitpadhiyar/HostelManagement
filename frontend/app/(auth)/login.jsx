@@ -35,15 +35,12 @@ const ROLE_CONFIGS = {
     title: 'Student Portal',
     sub: 'Apply for leaves, check attendance & gate pass clearance',
     inputLabel: 'Student Roll No or Email',
-    placeholder: 'e.g. EN2022001 or student@hosteleasy.demo',
+    placeholder: 'Enter your Roll No or Email',
     icon: User,
     color: '#2563EB',
     gradient: ['#2563EB', '#1D4ED8'],
     pillBg: 'rgba(219, 234, 254, 0.7)',
     borderColor: '#93C5FD',
-    demoCred: 'EN2022001',
-    demoPass: 'Password@123',
-    demoName: 'Aarav Sharma (Room A-204)',
   },
   [ROLES.PARENT]: {
     id: ROLES.PARENT,
@@ -51,15 +48,12 @@ const ROLE_CONFIGS = {
     title: 'Parent Portal',
     sub: 'Authorize or reject ward leaves & track movements',
     inputLabel: 'Registered Parent Mobile or Email',
-    placeholder: 'e.g. 9876543211 or parent@hosteleasy.demo',
+    placeholder: 'Enter registered Mobile or Email',
     icon: Heart,
     color: '#E11D48',
     gradient: ['#E11D48', '#BE123C'],
     pillBg: 'rgba(254, 226, 226, 0.7)',
     borderColor: '#FCA5A5',
-    demoCred: 'parent@hosteleasy.demo',
-    demoPass: 'Password@123',
-    demoName: 'Rajesh Sharma',
   },
   [ROLES.WARDEN]: {
     id: ROLES.WARDEN,
@@ -67,15 +61,12 @@ const ROLE_CONFIGS = {
     title: 'Chief Warden Portal',
     sub: 'Approve gate passes, log roll call & oversee hostel operations',
     inputLabel: 'Warden ID or Staff Email',
-    placeholder: 'e.g. warden@hosteleasy.demo or Dr. Rameshwar',
+    placeholder: 'Enter Warden ID or Email',
     icon: Shield,
     color: '#059669',
     gradient: ['#059669', '#047857'],
     pillBg: 'rgba(209, 250, 229, 0.7)',
     borderColor: '#6EE7B7',
-    demoCred: 'warden@hosteleasy.demo',
-    demoPass: 'Password@123',
-    demoName: 'Dr. Rameshwar Upadhyay',
   },
   [ROLES.GUARD]: {
     id: ROLES.GUARD,
@@ -83,21 +74,18 @@ const ROLE_CONFIGS = {
     title: 'Gate Security Terminal',
     sub: 'Verify student QR passes, log departures & campus check-ins',
     inputLabel: 'Guard Security ID or Email',
-    placeholder: 'e.g. guard@hosteleasy.demo or GRD001',
+    placeholder: 'Enter Guard ID or Email',
     icon: ShieldCheck,
     color: '#D97706',
     gradient: ['#D97706', '#B45309'],
     pillBg: 'rgba(254, 243, 199, 0.7)',
     borderColor: '#FCD34D',
-    demoCred: 'guard@hosteleasy.demo',
-    demoPass: 'Password@123',
-    demoName: 'Balwant Singh (Main Gate 1)',
   },
 };
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, switchDemoRole } = useApp();
+  const { login } = useApp();
 
   const [activeRole, setActiveRole] = useState(ROLES.STUDENT);
   const [email, setEmail] = useState('');

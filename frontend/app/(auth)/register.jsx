@@ -289,7 +289,7 @@ export default function RegisterScreen() {
               {/* Full Name */}
               <CustomInput
                 label="Full Name"
-                placeholder="e.g. Aarav Sharma"
+                placeholder="Enter full legal name"
                 value={name}
                 onChangeText={setName}
                 leftIcon={User}

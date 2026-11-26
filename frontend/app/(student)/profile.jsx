@@ -35,7 +35,10 @@ export default function StudentProfile() {
   const router = useRouter();
   const { currentUser, students, updateStudentProfile } = useApp();
 
-  const student = students.find((s) => s.id === currentUser?.id) || students[0];
+  const student =
+    students.find((s) => s.id === currentUser?.id || s.id === currentUser?.studentId) ||
+    currentUser ||
+    {};
 
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [mobile, setMobile] = useState(student.mobile);

@@ -15,6 +15,7 @@ import AppHeader from '../../components/common/AppHeader';
 import PrimaryButton from '../../components/common/PrimaryButton';
 import SecondaryButton from '../../components/common/SecondaryButton';
 import SuccessModal from '../../components/modals/SuccessModal';
+import EmptyState from '../../components/common/EmptyState';
 import RoleTabBar from '../../components/navigation/RoleTabBar';
 import { Building, Users, Bed, Check, Plus } from 'lucide-react-native';
 
@@ -87,7 +88,8 @@ export default function WardenRooms() {
         {/* Rooms List */}
         <Text style={styles.sectionHeader}>ROOM DIRECTORY</Text>
 
-        {rooms.map((room) => {
+        {rooms.length > 0 ? (
+          rooms.map((room) => {
           const roomStudents = students.filter((s) => (room.studentIds || []).includes(s.id));
           const isFull = room.available === 0;
 
@@ -177,7 +179,13 @@ export default function WardenRooms() {
               )}
             </View>
           );
-        })}
+        })
+        ) : (
+          <EmptyState
+            title="No Rooms Registered"
+            description="No hostel room records found in the database."
+          />
+        )}
       </ScrollView>
 
       {/* Allocation Modal */}
@@ -193,35 +201,41 @@ export default function WardenRooms() {
             <Text style={styles.modalSub}>Select student to assign into this room</Text>
 
             <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
-              {students.map((stu) => {
-                const isSelected = selectedStudentId === stu.id;
-                return (
-                  <TouchableOpacity
-                    key={stu.id}
-                    style={[
-                      styles.studentChoice,
-                      isSelected && styles.studentChoiceActive,
-                    ]}
-                    onPress={() => setSelectedStudentId(stu.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.studentChoiceName,
-                          isSelected && { color: COLORS.primary },
-                        ]}
-                      >
-                        {stu.name}
-                      </Text>
-                      <Text style={styles.studentChoiceSub}>
-                        {stu.enrollmentNo} • Currently in {stu.roomNo}
-                      </Text>
-                    </View>
-                    {isSelected && <Check size={18} color={COLORS.primary} />}
-                  </TouchableOpacity>
-                );
-              })}
+              {students.length > 0 ? (
+                students.map((stu) => {
+                  const isSelected = selectedStudentId === stu.id;
+                  return (
+                    <TouchableOpacity
+                      key={stu.id}
+                      style={[
+                        styles.studentChoice,
+                        isSelected && styles.studentChoiceActive,
+                      ]}
+                      onPress={() => setSelectedStudentId(stu.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[
+                            styles.studentChoiceName,
+                            isSelected && { color: COLORS.primary },
+                          ]}
+                        >
+                          {stu.name}
+                        </Text>
+                        <Text style={styles.studentChoiceSub}>
+                          {stu.enrollmentNo} • Currently in {stu.roomNo}
+                        </Text>
+                      </View>
+                      {isSelected && <Check size={18} color={COLORS.primary} />}
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <Text style={[styles.noOccupantsText, { paddingVertical: 20, textAlign: 'center' }]}>
+                  No registered students available to allocate.
+                </Text>
+              )}
             </ScrollView>
 
             <View style={styles.modalActionsRow}>
