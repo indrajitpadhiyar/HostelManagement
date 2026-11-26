@@ -50,10 +50,9 @@ const roomSchema = new mongoose.Schema(
 );
 
 // Auto-calculate available count
-roomSchema.pre('save', function (next) {
-  this.occupied = this.studentIds.length;
+roomSchema.pre('save', function () {
+  this.occupied = (this.studentIds || []).length;
   this.available = Math.max(0, this.capacity - this.occupied);
-  next();
 });
 
 export const Room = mongoose.model('Room', roomSchema);
